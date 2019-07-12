@@ -1,9 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.26228.4
+VisualStudioVersion = 15.0.28307.757
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DepotDownloader", "DepotDownloader\DepotDownloader.csproj", "{39159C47-ACD3-449F-96CA-4F30C8ED147A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DepotDownloader", "DepotDownloader\DepotDownloader.csproj", "{6BBB1591-6ADA-4F4F-88F4-41BD1F1B671D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,12 +11,15 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{39159C47-ACD3-449F-96CA-4F30C8ED147A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{39159C47-ACD3-449F-96CA-4F30C8ED147A}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{39159C47-ACD3-449F-96CA-4F30C8ED147A}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{39159C47-ACD3-449F-96CA-4F30C8ED147A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6BBB1591-6ADA-4F4F-88F4-41BD1F1B671D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6BBB1591-6ADA-4F4F-88F4-41BD1F1B671D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6BBB1591-6ADA-4F4F-88F4-41BD1F1B671D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6BBB1591-6ADA-4F4F-88F4-41BD1F1B671D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {DB6A5392-86EE-4E22-BDDB-AD8739061671}
 	EndGlobalSection
 EndGlobal

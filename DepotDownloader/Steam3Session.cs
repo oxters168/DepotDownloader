@@ -64,7 +64,7 @@ namespace DepotDownloader
         static readonly TimeSpan STEAM3_TIMEOUT = TimeSpan.FromSeconds( 30 );
 
 
-        public Steam3Session( SteamUser.LogOnDetails details )
+        public Steam3Session( SteamClient steamClient, SteamUser.LogOnDetails details, string sentryLoc = "" )
         {
             this.logonDetails = details;
 
@@ -83,7 +83,7 @@ namespace DepotDownloader
             this.PackageInfo = new Dictionary<uint, SteamApps.PICSProductInfoCallback.PICSProductInfo>();
             this.AppBetaPasswords = new Dictionary<string, byte[]>();
 
-            this.steamClient = new SteamClient();
+            this.steamClient = steamClient;
 
             this.steamUser = this.steamClient.GetHandler<SteamUser>();
             this.steamApps = this.steamClient.GetHandler<SteamApps>();
@@ -104,7 +104,7 @@ namespace DepotDownloader
 
             if ( authenticatedUser )
             {
-                FileInfo fi = new FileInfo( String.Format( "{0}.sentryFile", logonDetails.Username ) );
+                FileInfo fi = new FileInfo(Path.Combine(sentryLoc, String.Format( "{0}.sentryFile", logonDetails.Username )) );
                 if ( ConfigStore.TheConfig.SentryData != null && ConfigStore.TheConfig.SentryData.ContainsKey( logonDetails.Username ) )
                 {
                     logonDetails.SentryFileHash = Util.SHAHash( ConfigStore.TheConfig.SentryData[ logonDetails.Username ] );
@@ -445,7 +445,7 @@ namespace DepotDownloader
 
         public void TryWaitForLoginKey()
         {
-            if ( logonDetails.Username == null || !ContentDownloader.Config.RememberPassword ) return;
+            if ( logonDetails.Username == null || !logonDetails.ShouldRememberPassword ) return;
 
             DateTime waitUntil = new DateTime().AddSeconds( 10 );
 
@@ -525,7 +525,7 @@ namespace DepotDownloader
         {
             bool isSteamGuard = loggedOn.Result == EResult.AccountLogonDenied;
             bool is2FA = loggedOn.Result == EResult.AccountLoginDeniedNeedTwoFactor;
-            bool isLoginKey = ContentDownloader.Config.RememberPassword && logonDetails.LoginKey != null && loggedOn.Result == EResult.InvalidPassword;
+            bool isLoginKey = logonDetails.ShouldRememberPassword && logonDetails.LoginKey != null && loggedOn.Result == EResult.InvalidPassword;
 
             if ( isSteamGuard || is2FA || isLoginKey )
             {
@@ -549,16 +549,8 @@ namespace DepotDownloader
 
                     logonDetails.LoginKey = null;
 
-                    if ( ContentDownloader.Config.SuppliedPassword != null )
-                    {
-                        Console.WriteLine( "Login key was expired. Connecting with supplied password." );
-                        logonDetails.Password = ContentDownloader.Config.SuppliedPassword;
-                    }
-                    else
-                    {
-                        Console.WriteLine( "Login key was expired. Please enter your password: " );
-                        logonDetails.Password = Util.ReadPassword();
-                    }
+                    Console.WriteLine( "Login key was expired. Please enter your password: " );
+                    logonDetails.Password = Util.ReadPassword();
                 }
                 else
                 {

@@ -47,7 +47,6 @@ namespace DepotDownloader
         bool bExpectingDisconnectRemote;
         bool bDidDisconnect;
         int connectionBackoff;
-        int seq; // more hack fixes
         DateTime connectTime;
 
         // input
@@ -67,7 +66,6 @@ namespace DepotDownloader
             this.bConnected = false;
             this.bConnecting = false;
             this.bAborted = false;
-            this.seq = 0;
 
             this.steamClient = steamClient;
 
@@ -127,167 +125,129 @@ namespace DepotDownloader
             Connect();
         }
 
-        /*public delegate bool WaitCondition();
-        public bool WaitUntilCallback( Action submitter, WaitCondition waiter )
-        {
-            while ( !bAborted && !waiter() )
-            {
-                submitter();
-
-                int seq = this.seq;
-                do
-                {
-                    WaitForCallbacks();
-                }
-                while ( !bAborted && this.seq == seq && !waiter() );
-            }
-
-            return bAborted;
-        }*/
-
-        /*public Credentials WaitForCredentials()
-        {
-            if ( credentials.IsValid || bAborted )
-                return credentials;
-
-            routineExecutor.StartCoroutine(CommonRoutines.WaitToDoAction(() => { return credentials.IsValid; }));
-            //WaitUntilCallback( () => { }, () => { return credentials.IsValid; } );
-
-            return credentials;
-        }*/
-
         public async Task RequestAppInfo(uint appId)
         {
-            bool appTokensReceived = false;
-            while (!appTokensReceived)
-                appTokensReceived = await RequestAppTokens(appId);
+            if (!AppInfo.ContainsKey(appId) && !bAborted)
+            {
+                bool appTokensReceived = false;
+                while (!bAborted && !appTokensReceived)
+                    appTokensReceived = await RequestAppTokens(appId);
 
-            bool productInfoReceived = false;
-            while (!productInfoReceived)
-                productInfoReceived = await RequestPICSProductInfo(appId);
+                bool productInfoReceived = false;
+                while (!bAborted && !productInfoReceived)
+                    productInfoReceived = await RequestPICSProductInfo(appId);
+            }
         }
         private Task<bool> RequestPICSProductInfo(uint appId)
         {
             var tsc = new TaskCompletionSource<bool>();
-            if (AppInfo.ContainsKey(appId) || bAborted)
+
+            SteamApps.PICSRequest request = new SteamApps.PICSRequest(appId);
+            if (AppTokens.ContainsKey(appId))
             {
-                tsc.SetResult(true);
-                return tsc.Task;
+                request.AccessToken = AppTokens[appId];
+                request.Public = false;
             }
-            else
+
+            IDisposable subscription = null;
+            Action<SteamApps.PICSProductInfoCallback> cbMethod = (appInfo) =>
             {
-                SteamApps.PICSRequest request = new SteamApps.PICSRequest(appId);
-                if (AppTokens.ContainsKey(appId))
+                foreach (var app_value in appInfo.Apps)
                 {
-                    request.AccessToken = AppTokens[appId];
-                    request.Public = false;
+                    var app = app_value.Value;
+
+                    Console.WriteLine("Got AppInfo for {0}", app.ID);
+                    AppInfo.Add(app.ID, app);
                 }
 
-                Action<SteamApps.PICSProductInfoCallback> cbMethod = (appInfo) =>
+                foreach (var app in appInfo.UnknownApps)
                 {
-                    foreach (var app_value in appInfo.Apps)
-                    {
-                        var app = app_value.Value;
+                    AppInfo.Add(app, null);
+                }
 
-                        Console.WriteLine("Got AppInfo for {0}", app.ID);
-                        AppInfo.Add(app.ID, app);
-                    }
+                tsc.SetResult(!appInfo.ResponsePending);
+                subscription.Dispose();
+            };
 
-                    foreach (var app in appInfo.UnknownApps)
-                    {
-                        AppInfo.Add(app, null);
-                    }
+            subscription = callbacks.Subscribe(steamApps.PICSGetProductInfo(new List<SteamApps.PICSRequest>() { request }, new List<SteamApps.PICSRequest>() { }), cbMethod);
 
-                    tsc.SetResult(!appInfo.ResponsePending);
-                };
-
-                callbacks.Subscribe(steamApps.PICSGetProductInfo(new List<SteamApps.PICSRequest>() { request }, new List<SteamApps.PICSRequest>() { }), cbMethod);
-
-                return tsc.Task;
-            }
+            return tsc.Task;
         }
         private Task<bool> RequestAppTokens(uint appId)
         {
             var tsc = new TaskCompletionSource<bool>();
 
-            if (AppInfo.ContainsKey(appId) || bAborted)
+            IDisposable subscription = null;
+            Action<SteamApps.PICSTokensCallback> cbMethodTokens = (appTokens) =>
             {
-                tsc.SetResult(true);
-                return tsc.Task;
-            }
-            else
-            {
-                Action<SteamApps.PICSTokensCallback> cbMethodTokens = (appTokens) =>
+                if (appTokens.AppTokensDenied.Contains(appId))
                 {
-                    if (appTokens.AppTokensDenied.Contains(appId))
-                    {
-                        Console.WriteLine("Insufficient privileges to get access token for app {0}", appId);
-                    }
+                    Console.WriteLine("Insufficient privileges to get access token for app {0}", appId);
+                }
 
-                    foreach (var token_dict in appTokens.AppTokens)
-                    {
-                        this.AppTokens.Add(token_dict.Key, token_dict.Value);
-                    }
-                    tsc.SetResult(true);
-                };
+                foreach (var token_dict in appTokens.AppTokens)
+                {
+                    this.AppTokens.Add(token_dict.Key, token_dict.Value);
+                }
+                tsc.SetResult(true);
+                subscription.Dispose();
+            };
 
-                callbacks.Subscribe(steamApps.PICSGetAccessTokens(new List<uint>() { appId }, new List<uint>() { }), cbMethodTokens);
+            subscription = callbacks.Subscribe(steamApps.PICSGetAccessTokens(new List<uint>() { appId }, new List<uint>() { }), cbMethodTokens);
 
-                return tsc.Task;
-            }
+            return tsc.Task;
         }
 
         public async Task RequestPackageInfo(IEnumerable<uint> packageIds)
         {
-            bool packageInfoReceived = false;
-            while (!packageInfoReceived)
-                packageInfoReceived = await RequestPackageInfoInside(packageIds);
-        }
-        private Task<bool> RequestPackageInfoInside(IEnumerable<uint> packageIds)
-        {
-            var tsc = new TaskCompletionSource<bool>();
-
             List<uint> packages = packageIds.ToList();
             packages.RemoveAll(pid => PackageInfo.ContainsKey(pid));
 
-            if (packages.Count == 0 || bAborted)
+            if (packages.Count > 0 && !bAborted)
             {
-                tsc.SetResult(true);
-                return tsc.Task;
+                bool packageInfoReceived = false;
+                while (!bAborted && !packageInfoReceived)
+                    packageInfoReceived = await RequestPackageInfoInside(packages);
             }
-            else
+        }
+        private Task<bool> RequestPackageInfoInside(IEnumerable<uint> packages)
+        {
+            var tsc = new TaskCompletionSource<bool>();
+
+            IDisposable subscription = null;
+            Action<SteamApps.PICSProductInfoCallback> cbMethod = (packageInfo) =>
             {
-                Action<SteamApps.PICSProductInfoCallback> cbMethod = (packageInfo) =>
+                foreach (var package_value in packageInfo.Packages)
                 {
-                    foreach (var package_value in packageInfo.Packages)
-                    {
-                        var package = package_value.Value;
-                        PackageInfo.Add(package.ID, package);
-                    }
+                    var package = package_value.Value;
+                    PackageInfo.Add(package.ID, package);
+                }
 
-                    foreach (var package in packageInfo.UnknownPackages)
-                    {
-                        PackageInfo.Add(package, null);
-                    }
+                foreach (var package in packageInfo.UnknownPackages)
+                {
+                    PackageInfo.Add(package, null);
+                }
 
-                    tsc.SetResult(!packageInfo.ResponsePending);
-                };
+                tsc.SetResult(!packageInfo.ResponsePending);
+                subscription.Dispose();
+            };
 
-                callbacks.Subscribe(steamApps.PICSGetProductInfo(new List<uint>(), packages), cbMethod);
-                return tsc.Task;
-            }
+            subscription = callbacks.Subscribe(steamApps.PICSGetProductInfo(new List<uint>(), packages), cbMethod);
+            return tsc.Task;
         }
 
         public Task<bool> RequestFreeAppLicense( uint appId )
         {
             var tsc = new TaskCompletionSource<bool>();
 
+            IDisposable subscription = null;
             Action<SteamApps.FreeLicenseCallback> cbMethod = (resultInfo) =>
             {
                 tsc.SetResult(resultInfo.GrantedApps.Contains(appId));
+                subscription.Dispose();
             };
 
-            callbacks.Subscribe(steamApps.RequestFreeLicense(appId), cbMethod);
+            subscription = callbacks.Subscribe(steamApps.RequestFreeLicense(appId), cbMethod);
             return tsc.Task;
         }
 
@@ -308,6 +268,7 @@ namespace DepotDownloader
             }
             else
             {
+                IDisposable subscription = null;
                 Action<SteamApps.AppOwnershipTicketCallback> cbMethod = (appTicket) =>
                 {
                     if (appTicket.Result != EResult.OK)
@@ -321,9 +282,10 @@ namespace DepotDownloader
                         AppTickets[appTicket.AppID] = appTicket.Ticket;
                     }
                     tsc.SetResult(true);
+                    subscription.Dispose();
                 };
 
-                callbacks.Subscribe(steamApps.GetAppOwnershipTicket(appId), cbMethod);
+                subscription = callbacks.Subscribe(steamApps.GetAppOwnershipTicket(appId), cbMethod);
                 return tsc.Task;
             }
         }
@@ -339,7 +301,7 @@ namespace DepotDownloader
             }
             else
             {
-
+                IDisposable subscription = null;
                 Action<SteamApps.DepotKeyCallback> cbMethod = (depotKey) =>
                 {
                     Console.WriteLine("Got depot key for {0} result: {1}", depotKey.DepotID, depotKey.Result);
@@ -352,9 +314,10 @@ namespace DepotDownloader
 
                     DepotKeys[depotKey.DepotID] = depotKey.DepotKey;
                     tsc.SetResult(true);
+                    subscription.Dispose();
                 };
 
-                callbacks.Subscribe(steamApps.GetDepotDecryptionKey(depotId, appid), cbMethod);
+                subscription = callbacks.Subscribe(steamApps.GetDepotDecryptionKey(depotId, appid), cbMethod);
                 return tsc.Task;
             }
         }
@@ -384,6 +347,7 @@ namespace DepotDownloader
             }
             else
             {
+                IDisposable subscription = null;
                 Action<SteamApps.CDNAuthTokenCallback> cbMethod = (cdnAuth) =>
                 {
                     Console.WriteLine("Got CDN auth token for {0} result: {1} (expires {2})", host, cdnAuth.Result, cdnAuth.Expiration);
@@ -397,9 +361,10 @@ namespace DepotDownloader
                     CDNAuthTokens.TryAdd(cdnKey, cdnAuth);
 
                     tsc.SetResult(true);
+                    subscription.Dispose();
                 };
 
-                callbacks.Subscribe(steamApps.GetCDNAuthToken(appid, depotid, host), cbMethod);
+                subscription = callbacks.Subscribe(steamApps.GetCDNAuthToken(appid, depotid, host), cbMethod);
                 return tsc.Task;
             }
         }
@@ -408,6 +373,7 @@ namespace DepotDownloader
         {
             var tsc = new TaskCompletionSource<bool>();
 
+            IDisposable subscription = null;
             Action<SteamApps.CheckAppBetaPasswordCallback> cbMethod = ( appPassword ) =>
             {
                 Console.WriteLine( "Retrieved {0} beta keys with result: {1}", appPassword.BetaPasswords.Count, appPassword.Result );
@@ -417,9 +383,10 @@ namespace DepotDownloader
                     AppBetaPasswords[entry.Key] = entry.Value;
                 }
                 tsc.SetResult(true);
+                subscription.Dispose();
             };
 
-            callbacks.Subscribe(steamApps.CheckAppBetaPassword(appid, password), cbMethod);
+            subscription = callbacks.Subscribe(steamApps.CheckAppBetaPassword(appid, password), cbMethod);
             return tsc.Task;
         }
 
@@ -430,6 +397,7 @@ namespace DepotDownloader
             var pubFileRequest = new CPublishedFile_GetDetails_Request();
             pubFileRequest.publishedfileids.Add( pubFile );
 
+            IDisposable subscription = null;
             Action<SteamUnifiedMessages.ServiceMethodResponse> cbMethod = callback =>
             {
                 if ( callback.Result == EResult.OK )
@@ -442,9 +410,10 @@ namespace DepotDownloader
                     tsc.SetResult(null);
                     throw new Exception( $"EResult {(int)callback.Result} ({callback.Result}) while retrieving UGC id for pubfile {pubFile}.");
                 }
+                subscription.Dispose();
             };
 
-            callbacks.Subscribe(steamPublishedFile.SendMessage(api => api.GetDetails(pubFileRequest)), cbMethod);
+            subscription = callbacks.Subscribe(steamPublishedFile.SendMessage(api => api.GetDetails(pubFileRequest)), cbMethod);
             return tsc.Task;
         }
 
@@ -494,21 +463,6 @@ namespace DepotDownloader
                 return tsc.Task;
             }
         }
-
-        /*private void WaitForCallbacks()
-        {
-            callbacks.RunWaitCallbacks( TimeSpan.FromSeconds( 1 ) );
-
-            TimeSpan diff = DateTime.Now - connectTime;
-
-            if ( diff > STEAM3_TIMEOUT && !bConnected )
-            {
-                Console.WriteLine( "Timeout connecting to Steam3." );
-                Abort();
-
-                return;
-            }
-        }*/
 
         private void ConnectedCallback( SteamClient.ConnectedCallback connected )
         {
@@ -618,7 +572,6 @@ namespace DepotDownloader
 
             Console.WriteLine( " Done!" );
 
-            this.seq++;
             credentials.LoggedOn = true;
 
             if ( ContentDownloader.Config.CellID == 0 )

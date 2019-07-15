@@ -149,7 +149,7 @@ namespace DepotDownloader
                 {
                     if (server.Type == "CDN" || server.Type == "SteamCache")
                     {
-                        steamSession.RequestCDNAuthToken(appId, depotId, server.Host);
+                        await steamSession.RequestCDNAuthToken(appId, depotId, server.Host);
 
                         var cdnKey = string.Format("{0:D}:{1}", depotId, steamSession.ResolveCDNTopLevelHost(server.Host));
                         SteamApps.CDNAuthTokenCallback authTokenCallback;
@@ -189,13 +189,13 @@ namespace DepotDownloader
         {
             DebugLog.Assert(server.Type == "CDN" || server.Type == "SteamCache" || steamSession.AppTickets[depotId] == null, "CDNClientPool", "Re-authing a CDN or anonymous connection");
 
-            String cdnAuthToken = null;
+            string cdnAuthToken = null;
 
             try
             {
                 if (server.Type == "CDN" || server.Type == "SteamCache")
                 {
-                    steamSession.RequestCDNAuthToken(appId, depotId, server.Host);
+                    await steamSession.RequestCDNAuthToken(appId, depotId, server.Host);
 
                     var cdnKey = string.Format("{0:D}:{1}", depotId, steamSession.ResolveCDNTopLevelHost(server.Host));
                     SteamApps.CDNAuthTokenCallback authTokenCallback;

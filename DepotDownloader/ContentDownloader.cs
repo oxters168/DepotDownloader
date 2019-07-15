@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace DepotDownloader
 {
-    static class ContentDownloader
+    public static class ContentDownloader
     {
         public const uint INVALID_APP_ID = uint.MaxValue;
         public const uint INVALID_DEPOT_ID = uint.MaxValue;
@@ -20,8 +20,6 @@ namespace DepotDownloader
 
         public static DownloadConfig Config = new DownloadConfig();
 
-        //private static Steam3Session steam3;
-        //private static Steam3Session.Credentials steam3Credentials;
         private static CDNClientPool cdnPool;
 
         private const string DEFAULT_DOWNLOAD_DIR = "depots";
@@ -44,6 +42,20 @@ namespace DepotDownloader
                 this.installDir = installDir;
                 this.contentName = contentName;
             }
+        }
+
+        public static async void DownloadApp(Steam3Session steam3, string installPath, uint appId)
+        {
+            Config.CellID = 0;
+            Config.InstallDirectory = installPath;
+            string branch = DEFAULT_BRANCH;
+
+            string os = "windows";
+
+            cdnPool = new CDNClientPool(steam3);
+            //await DownloadAppAsync(steam3, appId, depotId, manifestId, branch, os, false).ConfigureAwait(false);
+            await DownloadAppAsync(steam3, appId, INVALID_DEPOT_ID, INVALID_MANIFEST_ID, branch, os, false);
+            Shutdown();
         }
 
         static bool CreateDirectories( uint depotId, uint depotVersion, out string installDir )
@@ -328,9 +340,9 @@ namespace DepotDownloader
             }
         }
 
-        public static bool Initialize( Steam3Session steam3 )
+        /*public static bool Initialize( Steam3Session steam3 )
         {
-            /*string loginKey = null;
+            string loginKey = null;
 
             if ( username != null && Config.RememberPassword )
             {
@@ -353,11 +365,11 @@ namespace DepotDownloader
             {
                 Console.WriteLine( "Unable to get steam3 credentials." );
                 return false;
-            }*/
+            }
 
             cdnPool = new CDNClientPool( steam3 );
             return true;
-        }
+        }*/
 
         public static void Shutdown()
         {
@@ -388,7 +400,7 @@ namespace DepotDownloader
             }
         }
 
-        public static async Task DownloadAppAsync(Steam3Session steam3, uint appId, uint depotId, ulong manifestId, string branch, string os, bool isUgc )
+        public static async Task DownloadAppAsync(Steam3Session steam3, uint appId, uint depotId, ulong manifestId, string branch, string os, bool isUgc)
         {
             if (steam3 != null)
                 await steam3.RequestAppInfo(appId);
@@ -418,30 +430,30 @@ namespace DepotDownloader
                 if (workshopDepot != 0)
                     depotId = workshopDepot;
 
-                depotIDs.Add( depotId );
+                depotIDs.Add(depotId);
             }
             else
             {
-                Console.WriteLine( "Using app branch: '{0}'.", branch );
+                Console.WriteLine("Using app branch: '{0}'.", branch);
 
-                if ( depots != null )
+                if (depots != null)
                 {
-                    foreach ( var depotSection in depots.Children )
+                    foreach (var depotSection in depots.Children)
                     {
                         uint id = INVALID_DEPOT_ID;
-                        if ( depotSection.Children.Count == 0 )
+                        if (depotSection.Children.Count == 0)
                             continue;
 
-                        if ( !uint.TryParse( depotSection.Name, out id ) )
+                        if (!uint.TryParse(depotSection.Name, out id))
                             continue;
 
-                        if ( depotId != INVALID_DEPOT_ID && id != depotId )
+                        if (depotId != INVALID_DEPOT_ID && id != depotId)
                             continue;
 
-                        if ( depotId == INVALID_DEPOT_ID && !Config.DownloadAllPlatforms )
+                        if (depotId == INVALID_DEPOT_ID && !Config.DownloadAllPlatforms)
                         {
                             var depotConfig = depotSection[ "config" ];
-                            if ( depotConfig != KeyValue.Invalid && depotConfig[ "oslist" ] != KeyValue.Invalid && !string.IsNullOrWhiteSpace( depotConfig[ "oslist" ].Value ) )
+                            if (depotConfig != KeyValue.Invalid && depotConfig[ "oslist" ] != KeyValue.Invalid && !string.IsNullOrWhiteSpace(depotConfig["oslist"].Value))
                             {
                                 var oslist = depotConfig["oslist"].Value.Split(',');
                                 if (Array.IndexOf(oslist, os ?? Util.GetSteamOS()) == -1)

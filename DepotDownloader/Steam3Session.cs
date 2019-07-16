@@ -84,12 +84,12 @@ namespace DepotDownloader
             this.callbacks.Subscribe<SteamUser.UpdateMachineAuthCallback>(UpdateMachineAuthCallback);
             this.callbacks.Subscribe<SteamUser.LoginKeyCallback>(LoginKeyCallback);
         }
-        public Steam3Session(SteamClient steamClient, CallbackManager callbackManager, SteamUser.LogOnDetails details, string sentryLoc = "") : this(steamClient, callbackManager)
+        public Steam3Session(SteamClient steamClient, CallbackManager callbackManager, SteamUser.LogOnDetails details) : this(steamClient, callbackManager)
         {
-            LoginAs(details, sentryLoc);
+            LoginAs(details);
         }
 
-        public void LoginAs(SteamUser.LogOnDetails details, string sentryLoc = "")
+        public void LoginAs(SteamUser.LogOnDetails details)
         {
             this.AppTickets = new Dictionary<uint, byte[]>();
             this.AppTokens = new Dictionary<uint, ulong>();
@@ -106,17 +106,9 @@ namespace DepotDownloader
 
             if (authenticatedUser)
             {
-                FileInfo fi = new FileInfo(Path.Combine(sentryLoc, String.Format("{0}.sentryFile", logonDetails.Username)));
                 if (ConfigStore.TheConfig.SentryData != null && ConfigStore.TheConfig.SentryData.ContainsKey(logonDetails.Username))
                 {
                     logonDetails.SentryFileHash = Util.SHAHash(ConfigStore.TheConfig.SentryData[logonDetails.Username]);
-                }
-                else if (fi.Exists && fi.Length > 0)
-                {
-                    var sentryData = File.ReadAllBytes(fi.FullName);
-                    logonDetails.SentryFileHash = Util.SHAHash(sentryData);
-                    ConfigStore.TheConfig.SentryData[logonDetails.Username] = sentryData;
-                    ConfigStore.Save();
                 }
             }
 

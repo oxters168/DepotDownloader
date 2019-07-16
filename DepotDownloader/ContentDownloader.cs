@@ -225,8 +225,7 @@ namespace DepotDownloader
                 if ( otherAppId == appId )
                 {
                     // This shouldn't ever happen, but ya never know with Valve. Don't infinite loop.
-                    Console.WriteLine( "App {0}, Depot {1} has depotfromapp of {2}!",
-                        appId, depotId, otherAppId );
+                    SteamController.LogToConsole("App " + appId + ", Depot " + depotId + " has depotfromapp of " + otherAppId + "!");
                     return INVALID_MANIFEST_ID;
                     //return INVALID_MANIFEST_ID;
                 }
@@ -251,7 +250,6 @@ namespace DepotDownloader
                     string password = Config.BetaPassword;
                     if ( password == null )
                     {
-                        Console.Write( "Please enter the password for branch {0}: ", branch );
                         Config.BetaPassword = password = Console.ReadLine();
                     }
 
@@ -265,7 +263,7 @@ namespace DepotDownloader
 
                         if ( manifest_bytes == null )
                         {
-                            Console.WriteLine("Password was invalid for branch {0}", branch);
+                            SteamController.LogToConsole("Password was invalid for branch " + branch);
                             return INVALID_MANIFEST_ID;
                         }
 
@@ -278,7 +276,7 @@ namespace DepotDownloader
 
                         if (!steam3.AppBetaPasswords.ContainsKey(branch))
                         {
-                            Console.WriteLine("Password was invalid for branch {0}", branch);
+                            SteamController.LogToConsole("Password was invalid for branch " + branch);
                             return INVALID_MANIFEST_ID;
                         }
 
@@ -290,7 +288,7 @@ namespace DepotDownloader
                         }
                         catch ( Exception e )
                         {
-                            Console.WriteLine("Failed to decrypt branch {0}: {1}", branch, e.Message);
+                            SteamController.LogToConsole("Failed to decrypt branch " + branch + ": " + e.Message);
                             return INVALID_MANIFEST_ID;
                         }
 
@@ -298,7 +296,7 @@ namespace DepotDownloader
                     }
                     else
                     {
-                        Console.WriteLine( "Unhandled depot encryption for depotId {0}", depotId );
+                        SteamController.LogToConsole( "Unhandled depot encryption for depotId " + depotId );
                         return INVALID_MANIFEST_ID;
                     }
 
@@ -363,7 +361,7 @@ namespace DepotDownloader
 
             if ( !steam3Credentials.IsValid )
             {
-                Console.WriteLine( "Unable to get steam3 credentials." );
+                SteamController.LogToConsole( "Unable to get steam3 credentials." );
                 return false;
             }
 
@@ -396,7 +394,7 @@ namespace DepotDownloader
             }
             else
             {
-                Console.WriteLine("Unable to locate manifest ID for published file {0}", publishedFileId);
+                SteamController.LogToConsole("Unable to locate manifest ID for published file " + publishedFileId);
             }
         }
 
@@ -411,12 +409,12 @@ namespace DepotDownloader
                 bool freeAppLicense = await steam3.RequestFreeAppLicense(appId);
                 if (freeAppLicense)
                 {
-                    Console.WriteLine( "Obtained FreeOnDemand license for app {0}", appId );
+                    SteamController.LogToConsole( "Obtained FreeOnDemand license for app " + appId );
                 }
                 else
                 {
                     string contentName = GetAppOrDepotName(steam3, INVALID_DEPOT_ID, appId);
-                    Console.WriteLine("App {0} ({1}) is not available from this account.", appId, contentName);
+                    SteamController.LogToConsole("App " + appId + " (" + contentName + ") is not available from this account.");
                     return;
                 }
             }
@@ -434,7 +432,7 @@ namespace DepotDownloader
             }
             else
             {
-                Console.WriteLine("Using app branch: '{0}'.", branch);
+                SteamController.LogToConsole("Using app branch: '" + branch + "'.");
 
                 if (depots != null)
                 {
@@ -466,13 +464,12 @@ namespace DepotDownloader
                 }
                 if (depotIDs == null || (depotIDs.Count == 0 && depotId == INVALID_DEPOT_ID))
                 {
-                    Console.WriteLine("Couldn't find any depots to download for app {0}", appId);
+                    SteamController.LogToConsole("Couldn't find any depots to download for app " + appId);
                     return;
                 }
                 else if (depotIDs.Count == 0)
                 {
-                    Console.Write("Depot {0} not listed for app {1}", depotId, appId);
-                    Console.WriteLine();
+                    SteamController.LogToConsole("Depot " + depotId + " not listed for app " + appId);
                     return;
                 }
             }
@@ -490,11 +487,12 @@ namespace DepotDownloader
 
             try
             {
-                await DownloadSteam3Async(appId, infos).ConfigureAwait(false);
+                //await DownloadSteam3Async(appId, infos).ConfigureAwait(false);
+                await DownloadSteam3Async(appId, infos);
             }
             catch (OperationCanceledException)
             {
-                Console.WriteLine("App {0} was not completely downloaded.", appId);
+                SteamController.LogToConsole("App " + appId + " was not completely downloaded.");
             }
         }
 
@@ -510,7 +508,7 @@ namespace DepotDownloader
             bool hasAccess = await AccountHasAccess(steam3, depotId);
             if (!hasAccess)
             {
-                Console.WriteLine( "Depot {0} ({1}) is not available from this account.", depotId, contentName );
+                SteamController.LogToConsole("Depot " + depotId + " (" + contentName + ") is not available from this account.");
 
                 return null;
             }
@@ -523,14 +521,14 @@ namespace DepotDownloader
                 manifestId = await GetSteam3DepotManifest(steam3, depotId, appId, branch);
                 if (manifestId == INVALID_MANIFEST_ID && branch != "public")
                 {
-                    Console.WriteLine("Warning: Depot {0} does not have branch named \"{1}\". Trying public branch.", depotId, branch);
+                    SteamController.LogToConsole("Warning: Depot " + depotId + " does not have branch named \"" + branch + "\". Trying public branch.");
                     branch = "public";
                     manifestId = await GetSteam3DepotManifest(steam3, depotId, appId, branch);
                 }
 
                 if (manifestId == INVALID_MANIFEST_ID)
                 {
-                    Console.WriteLine("Depot {0} ({1}) missing public subsection or manifest section.", depotId, contentName);
+                    SteamController.LogToConsole("Depot " + depotId + " (" + contentName + ") missing public subsection or manifest section.");
                     return null;
                 }
             }
@@ -540,14 +538,14 @@ namespace DepotDownloader
             string installDir;
             if (!CreateDirectories(depotId, uVersion, out installDir))
             {
-                Console.WriteLine("Error: Unable to create install directories!");
+                SteamController.LogToConsole("Error: Unable to create install directories!");
                 return null;
             }
 
             await steam3.RequestDepotKey(depotId, appId);
             if (!steam3.DepotKeys.ContainsKey(depotId))
             {
-                Console.WriteLine("No valid depot key for {0}, unable to download.", depotId);
+                SteamController.LogToConsole("No valid depot key for " + depotId + ", unable to download.");
                 return null;
             }
 
@@ -579,7 +577,7 @@ namespace DepotDownloader
                 ulong DepotBytesCompressed = 0;
                 ulong DepotBytesUncompressed = 0;
 
-                Console.WriteLine( "Downloading depot {0} - {1}", depot.id, depot.contentName );
+                SteamController.LogToConsole("Downloading depot " + depot.id + " - " + depot.contentName);
 
                 CancellationTokenSource cts = new CancellationTokenSource();
                 cdnPool.ExhaustedToken = cts;
@@ -605,7 +603,7 @@ namespace DepotDownloader
                 if ( lastManifestId == depot.manifestId && oldProtoManifest != null )
                 {
                     newProtoManifest = oldProtoManifest;
-                    Console.WriteLine( "Already have manifest {0} for depot {1}.", depot.manifestId, depot.id );
+                    SteamController.LogToConsole("Already have manifest " + depot.manifestId + " for depot " + depot.id + ".");
                 }
                 else
                 {
@@ -617,11 +615,11 @@ namespace DepotDownloader
 
                     if ( newProtoManifest != null )
                     {
-                        Console.WriteLine( "Already have manifest {0} for depot {1}.", depot.manifestId, depot.id );
+                        SteamController.LogToConsole("Already have manifest " + depot.manifestId + " for depot " + depot.id + ".");
                     }
                     else
                     {
-                        Console.Write( "Downloading depot manifest..." );
+                        SteamController.LogToConsole( "Downloading depot manifest..." );
 
                         DepotManifest depotManifest = null;
 
@@ -630,51 +628,53 @@ namespace DepotDownloader
                             CDNClient client = null;
                             try
                             {
-                                client = await cdnPool.GetConnectionForDepotAsync( appId, depot.id, depot.depotKey, CancellationToken.None ).ConfigureAwait( false );
+                                //client = await cdnPool.GetConnectionForDepotAsync(appId, depot.id, depot.depotKey, CancellationToken.None).ConfigureAwait(false);
+                                client = await cdnPool.GetConnectionForDepotAsync(appId, depot.id, depot.depotKey, CancellationToken.None);
 
-                                depotManifest = await client.DownloadManifestAsync( depot.id, depot.manifestId ).ConfigureAwait( false );
+                                //depotManifest = await client.DownloadManifestAsync(depot.id, depot.manifestId).ConfigureAwait(false);
+                                depotManifest = await client.DownloadManifestAsync(depot.id, depot.manifestId);
 
-                                cdnPool.ReturnConnection( client );
+                                cdnPool.ReturnConnection(client);
                             }
-                            catch ( WebException e )
+                            catch (WebException e)
                             {
-                                cdnPool.ReturnBrokenConnection( client );
+                                cdnPool.ReturnBrokenConnection(client);
 
-                                if ( e.Status == WebExceptionStatus.ProtocolError )
+                                if (e.Status == WebExceptionStatus.ProtocolError)
                                 {
                                     var response = e.Response as HttpWebResponse;
-                                    if ( response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden )
+                                    if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
                                     {
-                                        Console.WriteLine( "Encountered 401 for depot manifest {0} {1}. Aborting.", depot.id, depot.manifestId );
+                                        SteamController.LogToConsole("Encountered 401 for depot manifest " + depot.id + " " + depot.manifestId + ". Aborting.");
                                         break;
                                     }
                                     else
                                     {
-                                        Console.WriteLine( "Encountered error downloading depot manifest {0} {1}: {2}", depot.id, depot.manifestId, response.StatusCode );
+                                        SteamController.LogToConsole("Encountered error downloading depot manifest " + depot.id + " " + depot.manifestId + ": " + response.StatusCode);
                                     }
                                 }
                                 else
                                 {
-                                    Console.WriteLine( "Encountered error downloading manifest for depot {0} {1}: {2}", depot.id, depot.manifestId, e.Status );
+                                    SteamController.LogToConsole("Encountered error downloading manifest for depot " + depot.id + " " + depot.manifestId + ": " + e.Status);
                                 }
                             }
-                            catch ( Exception e )
+                            catch (Exception e)
                             {
-                                cdnPool.ReturnBrokenConnection( client );
-                                Console.WriteLine( "Encountered error downloading manifest for depot {0} {1}: {2}", depot.id, depot.manifestId, e.Message );
+                                cdnPool.ReturnBrokenConnection(client);
+                                SteamController.LogToConsole("Encountered error downloading manifest for depot " + depot.id + " " + depot.manifestId + ": " + e.Message );
                             }
                         }
 
                         if ( depotManifest == null )
                         {
-                            Console.WriteLine( "\nUnable to download manifest {0} for depot {1}", depot.manifestId, depot.id );
+                            SteamController.LogToConsole("\nUnable to download manifest " + depot.manifestId + " for depot " + depot.id );
                             return;
                         }
 
                         newProtoManifest = new ProtoManifest( depotManifest, depot.manifestId );
                         newProtoManifest.SaveToFile( newManifestFileName );
 
-                        Console.WriteLine( " Done!" );
+                        SteamController.LogToConsole("Done!");
                     }
                 }
 
@@ -736,7 +736,8 @@ namespace DepotDownloader
                         
                         try
                         {
-                            await semaphore.WaitAsync().ConfigureAwait( false );
+                            //await semaphore.WaitAsync().ConfigureAwait( false );
+                            await semaphore.WaitAsync();
                             cts.Token.ThrowIfCancellationRequested();
 
                             string fileFinalPath = Path.Combine( depot.installDir, file.FileName );
@@ -833,10 +834,11 @@ namespace DepotDownloader
                                     neededChunks = Util.ValidateSteam3FileChecksums( fs, file.Chunks.OrderBy( x => x.Offset ).ToArray() );
                                 }
 
-                                if ( neededChunks.Count() == 0 )
+                                if (neededChunks.Count() == 0)
                                 {
                                     size_downloaded += file.TotalSize;
-                                    Console.WriteLine( "{0,6:#00.00}% {1}", ( ( float )size_downloaded / ( float )complete_download_size ) * 100.0f, fileFinalPath );
+                                    size_downloaded += file.TotalSize;
+                                    SteamController.LogToConsole(((float)size_downloaded / complete_download_size) * 100.0f + "% " + fileFinalPath);
                                     if ( fs != null )
                                         fs.Dispose();
                                     return;
@@ -859,7 +861,8 @@ namespace DepotDownloader
                                     CDNClient client;
                                     try
                                     {
-                                        client = await cdnPool.GetConnectionForDepotAsync( appId, depot.id, depot.depotKey, cts.Token ).ConfigureAwait( false );
+                                        //client = await cdnPool.GetConnectionForDepotAsync( appId, depot.id, depot.depotKey, cts.Token ).ConfigureAwait( false );
+                                        client = await cdnPool.GetConnectionForDepotAsync(appId, depot.id, depot.depotKey, cts.Token);
                                     }
                                     catch ( OperationCanceledException )
                                     {
@@ -875,7 +878,8 @@ namespace DepotDownloader
 
                                     try
                                     {
-                                        chunkData = await client.DownloadDepotChunkAsync( depot.id, data ).ConfigureAwait( false );
+                                        //chunkData = await client.DownloadDepotChunkAsync( depot.id, data ).ConfigureAwait( false );
+                                        chunkData = await client.DownloadDepotChunkAsync(depot.id, data);
                                         cdnPool.ReturnConnection( client );
                                         break;
                                     }
@@ -888,30 +892,30 @@ namespace DepotDownloader
                                             var response = e.Response as HttpWebResponse;
                                             if ( response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden )
                                             {
-                                                Console.WriteLine( "Encountered 401 for chunk {0}. Aborting.", chunkID );
+                                                SteamController.LogToConsole("Encountered 401 for chunk " + chunkID + ". Aborting.");
                                                 cts.Cancel();
                                                 break;
                                             }
                                             else
                                             {
-                                                Console.WriteLine( "Encountered error downloading chunk {0}: {1}", chunkID, response.StatusCode );
+                                                SteamController.LogToConsole("Encountered error downloading chunk " + chunkID + ": " + response.StatusCode );
                                             }
                                         }
                                         else
                                         {
-                                            Console.WriteLine( "Encountered error downloading chunk {0}: {1}", chunkID, e.Status );
+                                            SteamController.LogToConsole("Encountered error downloading chunk " + chunkID + ": " + e.Status );
                                         }
                                     }
                                     catch ( Exception e )
                                     {
                                         cdnPool.ReturnBrokenConnection( client );
-                                        Console.WriteLine( "Encountered unexpected error downloading chunk {0}: {1}", chunkID, e.Message );
+                                        SteamController.LogToConsole( "Encountered unexpected error downloading chunk " + chunkID + ": " + e.Message );
                                     }
                                 }
 
                                 if ( chunkData == null )
                                 {
-                                    Console.WriteLine( "Failed to find any server with chunk {0} for depot {1}. Aborting.", chunkID, depot.id );
+                                    SteamController.LogToConsole("Failed to find any server with chunk " + chunkID + " for depot " + depot.id + ". Aborting.");
                                     cts.Cancel();
                                     return;
                                 }
@@ -929,7 +933,7 @@ namespace DepotDownloader
 
                             fs.Dispose();
 
-                            Console.WriteLine( "{0,6:#00.00}% {1}", ( ( float )size_downloaded / ( float )complete_download_size ) * 100.0f, fileFinalPath );
+                            SteamController.LogToConsole(((float)size_downloaded / (float)complete_download_size) * 100.0f + "% " + fileFinalPath );
                         }
                         finally
                         {
@@ -940,15 +944,16 @@ namespace DepotDownloader
                     tasks[ i ] = task;
                 }
 
-                await Task.WhenAll( tasks ).ConfigureAwait( false );
+                //await Task.WhenAll( tasks ).ConfigureAwait( false );
+                await Task.WhenAll(tasks);
 
                 ConfigStore.TheConfig.LastManifests[ depot.id ] = depot.manifestId;
                 ConfigStore.Save();
 
-                Console.WriteLine( "Depot {0} - Downloaded {1} bytes ({2} bytes uncompressed)", depot.id, DepotBytesCompressed, DepotBytesUncompressed );
+                SteamController.LogToConsole("Depot " + depot.id + " - Downloaded " + DepotBytesCompressed + " bytes (" + DepotBytesUncompressed + " bytes uncompressed)");
             }
 
-            Console.WriteLine( "Total downloaded: {0} bytes ({1} bytes uncompressed) from {2} depots", TotalBytesCompressed, TotalBytesUncompressed, depots.Count );
+            SteamController.LogToConsole("Total downloaded: " + TotalBytesCompressed + " bytes (" + TotalBytesUncompressed + " bytes uncompressed) from " + depots.Count + " depots");
         }
     }
 }

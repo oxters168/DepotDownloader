@@ -69,5 +69,7 @@ steam3.Disconnect(true);
 ## Debugging
 Just like in SteamKit2, you can implement the IDebugListener interface to receive debug messages and enable debug log:
 ```
+DebugLog.AddListener(debugListener);
 DebugLog.Enabled = true;
 ```
+In the AddListener function, debugListener is the object that implements IDebugListener.

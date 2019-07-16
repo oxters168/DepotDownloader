@@ -48,6 +48,9 @@ namespace DepotDownloader
         {
             Config.CellID = 0;
             Config.InstallDirectory = installPath;
+            Config.DownloadManifestOnly = false;
+            Config.MaxDownloads = 4;
+            Config.MaxServers = 20;
             string branch = DEFAULT_BRANCH;
 
             string os = "windows";

@@ -1,38 +1,47 @@
 DepotDownloader
 ===============
 
-Steam depot downloader utilizing the SteamKit2 library. Supports .NET Core 2.0
+This is a fork of Depot Downloader. The intent of this fork is to allow this project to be capable of being plugged into an existing project that is already using the SteamKit2 library without hassle.
 
+
+## Basic Usage
+
+### Step 1
+
+You need to give a location for the config file.
 ```
-Usage - downloading one or all depots for an app:
-	dotnet DepotDownloader.dll -app <id> [-depot <id> [-manifest <id>] | [-ugc <id>]]
-		[-username <username> [-password <password>]] [other options]
-
-Usage - downloading a Workshop item published via SteamUGC
-	dotnet DepotDownloader.dll -pubfile <id> [-username <username> [-password <password>]]
-
-Parameters:
-	-app <#>				- the AppID to download.
-	-depot <#>				- the DepotID to download.
-	-manifest <id>			- manifest id of content to download (requires -depot, default: current for branch).
-	-ugc <#>				- the UGC ID to download.
-	-beta <branchname>		- download from specified branch if available (default: Public).
-	-betapassword <pass>	- branch password if applicable.
-	-all-platforms			- downloads all platform-specific depots when -app is used.
-	-os <os>				- the operating system for which to download the game (windows, macos or linux, default: OS the program is currently running on)
-
-	-pubfile <#>			- the PublishedFileId to download. (Will automatically resolve to UGC id)
-
-	-username <user>		- the username of the account to login to for restricted content.
-	-password <pass>		- the password of the account to login to for restricted content.
-	-remember-password		- if set, remember the password for subsequent logins of this user.
-
-	-dir <installdir>		- the directory in which to place downloaded files.
-	-filelist <file.txt>	- a list of files to download (from the manifest). Can optionally use regex to download only certain files.
-	-validate				- Include checksum verification of files already downloaded
-
-	-manifest-only			- downloads a human readable manifest for any depots that would be downloaded.
-	-cellid <#>				- the overridden CellID of the content server to download from.
-	-max-servers <#>		- maximum number of content servers to use. (default: 8).
-	-max-downloads <#>		- maximum number of chunks to download concurrently. (default: 4).
+ConfigStore.LoadFromFile("DepotDownloader.config");
 ```
+This needs to be the same each time since it holds the login keys of the users.
+
+### Step2
+
+Now you must create a Steam3Session object.
+```
+Steam3Session steam3 = new Steam3Session(steamClient, manager);
+```
+Provide it with your already created SteamClient and CallbackManager objects.
+
+Alternatively if the user had already logged in before, you can directly put in the logon details in the constructor
+```
+Steam3Session steam3 = new Steam3Session(
+                steamClient,
+                manager,
+                new SteamUser.LogOnDetails()
+                {
+                    Username = username,
+                    ShouldRememberPassword = true,
+                    LoginKey = loginKey,
+                });
+```
+
+### Step 3
+
+Finally now you can use the ContentDownloader class functions
+```
+ContentDownloader.DownloadApp(steam3, "Papers Please", 239030);
+```
+The functions will always require the Steam3Session object we created before.
+
+## Debugging
+Just like in SteamKit2, you can implement the IDebugListener interface to receive debug messages.

@@ -120,7 +120,7 @@ namespace DepotDownloader
                 }
             }
 
-            SteamController.LogToConsole("Connecting to Steam3...");
+            DebugLog.WriteLine("Steam3Session", "Connecting to Steam3...");
 
             Connect();
         }
@@ -156,7 +156,7 @@ namespace DepotDownloader
                 {
                     var app = app_value.Value;
 
-                    SteamController.LogToConsole("Got AppInfo for " + app.ID);
+                    DebugLog.WriteLine("Steam3Session", "Got AppInfo for " + app.ID);
                     AppInfo.Add(app.ID, app);
                 }
 
@@ -182,7 +182,7 @@ namespace DepotDownloader
             {
                 if (appTokens.AppTokensDenied.Contains(appId))
                 {
-                    SteamController.LogToConsole("Insufficient privileges to get access token for app " + appId);
+                    DebugLog.WriteLine("Steam3Session", "Insufficient privileges to get access token for app " + appId);
                 }
 
                 foreach (var token_dict in appTokens.AppTokens)
@@ -230,7 +230,7 @@ namespace DepotDownloader
                     //PackageInfo[package] = null;
                 }
 
-                SteamController.LogToConsole("Package info response pending: " + packageInfo.ResponsePending);
+                DebugLog.WriteLine("Steam3Session", "Package info response pending: " + packageInfo.ResponsePending);
                 tsc.SetResult(!packageInfo.ResponsePending);
                 subscription.Dispose();
             };
@@ -276,12 +276,12 @@ namespace DepotDownloader
                 {
                     if (appTicket.Result != EResult.OK)
                     {
-                        SteamController.LogToConsole("Unable to get appticket for " + appTicket.AppID + ": " + appTicket.Result);
+                        DebugLog.WriteLine("Steam3Session", "Unable to get appticket for " + appTicket.AppID + ": " + appTicket.Result);
                         Abort();
                     }
                     else
                     {
-                        SteamController.LogToConsole("Got appticket for " + appTicket.AppID);
+                        DebugLog.WriteLine("Steam3Session", "Got appticket for " + appTicket.AppID);
                         AppTickets[appTicket.AppID] = appTicket.Ticket;
                     }
                     tsc.SetResult(true);
@@ -307,7 +307,7 @@ namespace DepotDownloader
                 IDisposable subscription = null;
                 Action<SteamApps.DepotKeyCallback> cbMethod = (depotKey) =>
                 {
-                    SteamController.LogToConsole("Got depot key for " + depotKey.DepotID + " result: " + depotKey.Result);
+                    DebugLog.WriteLine("Steam3Session", "Got depot key for " + depotKey.DepotID + " result: " + depotKey.Result);
 
                     if (depotKey.Result != EResult.OK)
                     {
@@ -353,7 +353,7 @@ namespace DepotDownloader
                 IDisposable subscription = null;
                 Action<SteamApps.CDNAuthTokenCallback> cbMethod = (cdnAuth) =>
                 {
-                    SteamController.LogToConsole("Got CDN auth token for " + host + " result: " + cdnAuth.Result + " (expires " + cdnAuth.Expiration + ")");
+                    DebugLog.WriteLine("Steam3Session", "Got CDN auth token for " + host + " result: " + cdnAuth.Result + " (expires " + cdnAuth.Expiration + ")");
 
                     if (cdnAuth.Result != EResult.OK)
                     {
@@ -379,7 +379,7 @@ namespace DepotDownloader
             IDisposable subscription = null;
             Action<SteamApps.CheckAppBetaPasswordCallback> cbMethod = ( appPassword ) =>
             {
-                SteamController.LogToConsole("Retrieved " + appPassword.BetaPasswords.Count + " beta keys with result: " + appPassword.Result);
+                DebugLog.WriteLine("Steam3Session", "Retrieved " + appPassword.BetaPasswords.Count + " beta keys with result: " + appPassword.Result);
 
                 foreach (var entry in appPassword.BetaPasswords)
                 {
@@ -469,17 +469,17 @@ namespace DepotDownloader
 
         private void ConnectedCallback( SteamClient.ConnectedCallback connected )
         {
-            SteamController.LogToConsole( " Done!" );
+            DebugLog.WriteLine("Steam3Session",  " Done!" );
             bConnecting = false;
             bConnected = true;
             if ( !authenticatedUser )
             {
-                SteamController.LogToConsole( "Logging anonymously into Steam3..." );
+                DebugLog.WriteLine("Steam3Session",  "Logging anonymously into Steam3..." );
                 steamUser.LogOnAnonymous();
             }
             else
             {
-                SteamController.LogToConsole( "Logging '" + logonDetails.Username + "' into Steam3...");
+                DebugLog.WriteLine("Steam3Session",  "Logging '" + logonDetails.Username + "' into Steam3...");
                 steamUser.LogOn( logonDetails );
             }
         }
@@ -490,22 +490,22 @@ namespace DepotDownloader
 
             if ( disconnected.UserInitiated || bExpectingDisconnectRemote )
             {
-                SteamController.LogToConsole( "Disconnected from Steam" );
+                DebugLog.WriteLine("Steam3Session",  "Disconnected from Steam" );
             }
             else if ( connectionBackoff >= 10 )
             {
-                SteamController.LogToConsole( "Could not connect to Steam after 10 tries" );
+                DebugLog.WriteLine("Steam3Session",  "Could not connect to Steam after 10 tries" );
                 Abort( false );
             }
             else if ( !bAborted )
             {
                 if ( bConnecting )
                 {
-                    SteamController.LogToConsole( "Connection to Steam failed. Trying again" );
+                    DebugLog.WriteLine("Steam3Session",  "Connection to Steam failed. Trying again" );
                 }
                 else
                 {
-                    SteamController.LogToConsole( "Lost connection to Steam. Reconnecting" );
+                    DebugLog.WriteLine("Steam3Session",  "Lost connection to Steam. Reconnecting" );
                 }
 
                 Thread.Sleep( 1000 * ++connectionBackoff );
@@ -526,12 +526,12 @@ namespace DepotDownloader
 
                 if ( !isLoginKey )
                 {
-                    SteamController.LogToConsole( "This account is protected by Steam Guard." );
+                    DebugLog.WriteLine("Steam3Session",  "This account is protected by Steam Guard." );
                 }
 
                 if ( is2FA )
                 {
-                    SteamController.LogToConsole( "Please enter your 2 factor auth code from your authenticator app: " );
+                    DebugLog.WriteLine("Steam3Session",  "Please enter your 2 factor auth code from your authenticator app: " );
                     tfaRequired?.Invoke();
                     //logonDetails.TwoFactorCode = Console.ReadLine();
                 }
@@ -542,44 +542,44 @@ namespace DepotDownloader
 
                     logonDetails.LoginKey = null;
 
-                    SteamController.LogToConsole( "Login key was expired. Please enter your password: " );
+                    DebugLog.WriteLine("Steam3Session",  "Login key was expired. Please enter your password: " );
                     passRequired?.Invoke();
                     //logonDetails.Password = Util.ReadPassword();
                 }
                 else
                 {
-                    SteamController.LogToConsole( "Please enter the authentication code sent to your email address: " );
+                    DebugLog.WriteLine("Steam3Session",  "Please enter the authentication code sent to your email address: " );
                     authRequired?.Invoke();
                     //logonDetails.AuthCode = Console.ReadLine();
                 }
 
-                //SteamController.LogToConsole( "Retrying Steam3 connection..." );
+                //DebugLog.WriteLine("Steam3Session",  "Retrying Steam3 connection..." );
                 //Connect();
 
                 return;
             }
             else if ( loggedOn.Result == EResult.ServiceUnavailable )
             {
-                SteamController.LogToConsole("Unable to login to Steam3: " + loggedOn.Result );
+                DebugLog.WriteLine("Steam3Session", "Unable to login to Steam3: " + loggedOn.Result );
                 Abort( false );
 
                 return;
             }
             else if ( loggedOn.Result != EResult.OK )
             {
-                SteamController.LogToConsole("Unable to login to Steam3: " + loggedOn.Result );
+                DebugLog.WriteLine("Steam3Session", "Unable to login to Steam3: " + loggedOn.Result );
                 Abort();
 
                 return;
             }
 
-            SteamController.LogToConsole( " Done!" );
+            DebugLog.WriteLine("Steam3Session",  " Done!" );
 
             credentials.LoggedOn = true;
 
             if ( ContentDownloader.Config.CellID == 0 )
             {
-                SteamController.LogToConsole( "Using Steam3 suggested CellID: " + loggedOn.CellID );
+                DebugLog.WriteLine("Steam3Session",  "Using Steam3 suggested CellID: " + loggedOn.CellID );
                 ContentDownloader.Config.CellID = ( int )loggedOn.CellID;
             }
         }
@@ -601,7 +601,7 @@ namespace DepotDownloader
 
         private void SessionTokenCallback( SteamUser.SessionTokenCallback sessionToken )
         {
-            SteamController.LogToConsole( "Got session token!" );
+            DebugLog.WriteLine("Steam3Session",  "Got session token!" );
             credentials.SessionToken = sessionToken.SessionToken;
         }
 
@@ -609,20 +609,20 @@ namespace DepotDownloader
         {
             if ( licenseList.Result != EResult.OK )
             {
-                SteamController.LogToConsole( "Unable to get license list: " + licenseList.Result );
+                DebugLog.WriteLine("Steam3Session",  "Unable to get license list: " + licenseList.Result );
                 Abort();
 
                 return;
             }
 
-            SteamController.LogToConsole("Got " + licenseList.LicenseList.Count + " licenses for account!");
+            DebugLog.WriteLine("Steam3Session", "Got " + licenseList.LicenseList.Count + " licenses for account!");
             Licenses = licenseList.LicenseList;
         }
 
         private void UpdateMachineAuthCallback( SteamUser.UpdateMachineAuthCallback machineAuth )
         {
             byte[] hash = Util.SHAHash( machineAuth.Data );
-            SteamController.LogToConsole("Got Machine Auth: " + machineAuth.FileName + " " + machineAuth.Offset + " " + machineAuth.BytesToWrite + " " + machineAuth.Data.Length + " " + hash);
+            DebugLog.WriteLine("Steam3Session", "Got Machine Auth: " + machineAuth.FileName + " " + machineAuth.Offset + " " + machineAuth.BytesToWrite + " " + machineAuth.Data.Length + " " + hash);
 
             ConfigStore.TheConfig.SentryData[ logonDetails.Username ] = machineAuth.Data;
             ConfigStore.Save();
@@ -650,7 +650,7 @@ namespace DepotDownloader
 
         private void LoginKeyCallback( SteamUser.LoginKeyCallback loginKey )
         {
-            SteamController.LogToConsole("Accepted new login key for account " + logonDetails.Username );
+            DebugLog.WriteLine("Steam3Session", "Accepted new login key for account " + logonDetails.Username );
 
             ConfigStore.TheConfig.LoginKeys[ logonDetails.Username ] = loginKey.LoginKey;
             ConfigStore.Save();

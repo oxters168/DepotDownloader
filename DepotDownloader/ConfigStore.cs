@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using ProtoBuf;
 using System.IO;
-using System.IO.Compression;
+using Ionic.Zlib;
 
 namespace DepotDownloader
 {

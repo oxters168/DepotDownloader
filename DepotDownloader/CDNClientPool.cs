@@ -60,7 +60,7 @@ namespace DepotDownloader
                 }
                 catch (Exception ex)
                 {
-                    SteamController.LogToConsole("Failed to retrieve content server list: " + ex.Message);
+                    DebugLog.WriteLine("CDNClientPool", "Failed to retrieve content server list: " + ex.Message);
                 }
             }
 
@@ -173,7 +173,7 @@ namespace DepotDownloader
                 {
                     client = null;
 
-                    SteamController.LogToConsole("Failed to connect to content server " + server + ": " + ex.Message);
+                    DebugLog.WriteLine("CDNClientPool", "Failed to connect to content server " + server + ": " + ex.Message);
 
                     int penalty = 0;
                     ConfigStore.TheConfig.ContentServerPenalty.TryGetValue(server.Host, out penalty);
@@ -181,7 +181,7 @@ namespace DepotDownloader
                 }
             }
 
-            SteamController.LogToConsole("Initialized connection to content server " + server + " with depot id " + depotId);
+            DebugLog.WriteLine("CDNClientPool", "Initialized connection to content server " + server + " with depot id " + depotId);
 
             activeClientAuthed[client] = Tuple.Create(depotId, server);
             return client;
@@ -219,7 +219,7 @@ namespace DepotDownloader
             }
             catch (Exception ex)
             {
-                SteamController.LogToConsole("Failed to reauth to content server " + server + ": " + ex.Message);
+                DebugLog.WriteLine("CDNClientPool", "Failed to reauth to content server " + server + ": " + ex.Message);
             }
 
             return false;
@@ -246,12 +246,12 @@ namespace DepotDownloader
                 //if ((authData.Item2.Type == "CDN" || authData.Item2.Type == "SteamCache") && await ReauthConnectionAsync(client, authData.Item2, appId, depotId, depotKey).ConfigureAwait(false))
                 if ((authData.Item2.Type == "CDN" || authData.Item2.Type == "SteamCache") && await ReauthConnectionAsync(client, authData.Item2, appId, depotId, depotKey))
                 {
-                    SteamController.LogToConsole("Re-authed CDN connection to content server " + authData.Item2 + " from " + authData.Item1 + " to " + depotId);
+                    DebugLog.WriteLine("CDNClientPool", "Re-authed CDN connection to content server " + authData.Item2 + " from " + authData.Item1 + " to " + depotId);
                 }
                 //else if (authData.Item2.Type == "CS" && steamSession.AppTickets[depotId] == null && await ReauthConnectionAsync(client, authData.Item2, appId, depotId, depotKey).ConfigureAwait(false))
                 else if (authData.Item2.Type == "CS" && steamSession.AppTickets[depotId] == null && await ReauthConnectionAsync(client, authData.Item2, appId, depotId, depotKey))
                 {
-                    SteamController.LogToConsole("Re-authed anonymous connection to content server " + authData.Item2 + " from " + authData.Item1 + " to " + depotId);
+                    DebugLog.WriteLine("CDNClientPool", "Re-authed anonymous connection to content server " + authData.Item2 + " from " + authData.Item1 + " to " + depotId);
                 }
                 else
                 {

@@ -41,8 +41,9 @@ namespace DepotDownloader
         CallbackManager callbacks;
 
         bool authenticatedUser;
-        bool bConnected;
-        bool bConnecting;
+        public bool bConnected { get; private set; }
+        public bool bConnecting { get; private set; }
+        public bool isLoggingIn { get; private set; }
         bool bAborted;
         bool bExpectingDisconnectRemote;
         bool bDidDisconnect;
@@ -54,7 +55,7 @@ namespace DepotDownloader
 
         // output
         Credentials credentials;
-        public bool loggedOn { get { return credentials.LoggedOn; } }
+        public bool loggedOn { get { return credentials != null && credentials.LoggedOn; } }
 
         static readonly TimeSpan STEAM3_TIMEOUT = TimeSpan.FromSeconds( 30 );
 
@@ -110,6 +111,8 @@ namespace DepotDownloader
                 {
                     logonDetails.SentryFileHash = Util.SHAHash(ConfigStore.TheConfig.SentryData[logonDetails.Username]);
                 }
+
+                isLoggingIn = true;
             }
 
             DebugLog.WriteLine("Steam3Session", "Connecting to Steam3...");
@@ -510,6 +513,8 @@ namespace DepotDownloader
             bool isSteamGuard = loggedOn.Result == EResult.AccountLogonDenied;
             bool is2FA = loggedOn.Result == EResult.AccountLoginDeniedNeedTwoFactor;
             bool isLoginKey = logonDetails.ShouldRememberPassword && logonDetails.LoginKey != null && loggedOn.Result == EResult.InvalidPassword;
+
+            isLoggingIn = false;
 
             if ( isSteamGuard || is2FA || isLoginKey )
             {

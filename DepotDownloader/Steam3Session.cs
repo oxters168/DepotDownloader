@@ -15,7 +15,7 @@ namespace DepotDownloader
     {
         public class Credentials
         {
-            public bool LoggedOn { get; set; }
+            //public bool LoggedOn { get; set; }
             public ulong SessionToken { get; set; }
         }
 
@@ -55,7 +55,7 @@ namespace DepotDownloader
 
         // output
         Credentials credentials;
-        public bool loggedOn { get { return credentials != null && credentials.LoggedOn; } }
+        //public bool loggedOn { get { return credentials != null && credentials.LoggedOn; } }
 
         static readonly TimeSpan STEAM3_TIMEOUT = TimeSpan.FromSeconds( 30 );
 
@@ -572,7 +572,7 @@ namespace DepotDownloader
 
             DebugLog.WriteLine("Steam3Session",  " Done!" );
 
-            credentials.LoggedOn = true;
+            //credentials.LoggedOn = true;
 
             if ( ContentDownloader.Config.CellID == 0 )
             {

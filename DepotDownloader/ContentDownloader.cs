@@ -46,7 +46,7 @@ namespace DepotDownloader
 
         public static async void DownloadApp(Steam3Session steam3, string installPath, uint appId)
         {
-            Config.CellID = 0;
+            //Config.CellID = 0;
             Config.InstallDirectory = installPath;
             Config.DownloadManifestOnly = false;
             Config.MaxDownloads = 4;

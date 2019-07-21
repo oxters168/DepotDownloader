@@ -482,6 +482,7 @@ namespace DepotDownloader
         private void DisconnectedCallback( SteamClient.DisconnectedCallback disconnected )
         {
             bDidDisconnect = true;
+            isLoggingIn = false;
 
             if ( disconnected.UserInitiated || bExpectingDisconnectRemote )
             {

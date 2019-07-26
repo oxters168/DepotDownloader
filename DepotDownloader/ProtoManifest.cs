@@ -8,7 +8,7 @@ using SteamKit2;
 namespace DepotDownloader
 {
     [ProtoContract()]
-    class ProtoManifest
+    public class ProtoManifest
     {
         // Proto ctor
         private ProtoManifest()

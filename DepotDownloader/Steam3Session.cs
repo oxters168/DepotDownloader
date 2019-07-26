@@ -51,7 +51,7 @@ namespace DepotDownloader
         DateTime connectTime;
 
         // input
-        SteamUser.LogOnDetails logonDetails;
+        public SteamUser.LogOnDetails logonDetails { get; private set; }
 
         // output
         Credentials credentials;

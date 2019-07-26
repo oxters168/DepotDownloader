@@ -14,7 +14,7 @@ namespace DepotDownloader
         public List<string> FilesToDownload { get; set; }
         public List<Regex> FilesToDownloadRegex { get; set; }
 
-        public bool UsingExclusionList { get; set; }
+        //public bool UsingExclusionList { get; set; }
 
         public string BetaPassword { get; set; }
 

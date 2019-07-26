@@ -26,6 +26,8 @@ namespace DepotDownloader
         private const string CONFIG_DIR = ".DepotDownloader";
         private static readonly string STAGING_DIR = Path.Combine( CONFIG_DIR, "staging" );
 
+        public static ProtoManifest downloadManifest;
+
         private sealed class DepotDownloadInfo
         {
             public uint id { get; private set; }
@@ -44,9 +46,15 @@ namespace DepotDownloader
             }
         }
 
-        public static async void DownloadApp(Steam3Session steam3, string installPath, uint appId)
+        public static async void DownloadApp(Steam3Session steam3, string installPath, uint appId, bool manifestOnly = false, params string[] fileList)
         {
             //Config.CellID = 0;
+            if (fileList != null && fileList.Length > 0)
+            {
+                Config.UsingFileList = true;
+                Config.FilesToDownload = new List<string>(fileList);
+            }
+
             Config.InstallDirectory = installPath;
             Config.DownloadManifestOnly = false;
             Config.MaxDownloads = 4;
@@ -102,19 +110,21 @@ namespace DepotDownloader
             if ( !Config.UsingFileList )
                 return true;
 
-            foreach ( string fileListEntry in Config.FilesToDownload )
-            {
-                if ( fileListEntry.Equals( filename, StringComparison.OrdinalIgnoreCase ) )
-                    return true;
-            }
+            if (Config.FilesToDownload != null)
+                foreach ( string fileListEntry in Config.FilesToDownload )
+                {
+                    if ( fileListEntry.Equals( filename, StringComparison.OrdinalIgnoreCase ) )
+                        return true;
+                }
 
-            foreach ( Regex rgx in Config.FilesToDownloadRegex )
-            {
-                Match m = rgx.Match( filename );
+            if (Config.FilesToDownloadRegex != null)
+                foreach ( Regex rgx in Config.FilesToDownloadRegex )
+                {
+                    Match m = rgx.Match( filename );
 
-                if ( m.Success )
-                    return true;
-            }
+                    if ( m.Success )
+                        return true;
+                }
 
             return false;
         }
@@ -586,7 +596,8 @@ namespace DepotDownloader
                 cdnPool.ExhaustedToken = cts;
 
                 ProtoManifest oldProtoManifest = null;
-                ProtoManifest newProtoManifest = null;
+                //ProtoManifest newProtoManifest = null;
+                downloadManifest = null;
                 string configDir = Path.Combine( depot.installDir, CONFIG_DIR );
 
                 ulong lastManifestId = INVALID_MANIFEST_ID;
@@ -605,7 +616,7 @@ namespace DepotDownloader
 
                 if ( lastManifestId == depot.manifestId && oldProtoManifest != null )
                 {
-                    newProtoManifest = oldProtoManifest;
+                    downloadManifest = oldProtoManifest;
                     DebugLog.WriteLine("ContentDownloader", "Already have manifest " + depot.manifestId + " for depot " + depot.id + ".");
                 }
                 else
@@ -613,10 +624,10 @@ namespace DepotDownloader
                     var newManifestFileName = Path.Combine( configDir, string.Format( "{0}.bin", depot.manifestId ) );
                     if ( newManifestFileName != null )
                     {
-                        newProtoManifest = ProtoManifest.LoadFromFile( newManifestFileName );
+                        downloadManifest = ProtoManifest.LoadFromFile( newManifestFileName );
                     }
 
-                    if ( newProtoManifest != null )
+                    if ( downloadManifest != null )
                     {
                         DebugLog.WriteLine("ContentDownloader", "Already have manifest " + depot.manifestId + " for depot " + depot.id + ".");
                     }
@@ -674,21 +685,21 @@ namespace DepotDownloader
                             return;
                         }
 
-                        newProtoManifest = new ProtoManifest( depotManifest, depot.manifestId );
-                        newProtoManifest.SaveToFile( newManifestFileName );
+                        downloadManifest = new ProtoManifest( depotManifest, depot.manifestId );
+                        downloadManifest.SaveToFile( newManifestFileName );
 
                         DebugLog.WriteLine("ContentDownloader", "Done!");
                     }
                 }
 
-                newProtoManifest.Files.Sort( ( x, y ) => { return x.FileName.CompareTo( y.FileName ); } );
+                downloadManifest.Files.Sort( ( x, y ) => { return x.FileName.CompareTo( y.FileName ); } );
 
                 if ( Config.DownloadManifestOnly )
                 {
-                    StringBuilder manifestBuilder = new StringBuilder();
+                    /*StringBuilder manifestBuilder = new StringBuilder();
                     string txtManifest = Path.Combine( depot.installDir, string.Format( "manifest_{0}.txt", depot.id ) );
 
-                    foreach ( var file in newProtoManifest.Files )
+                    foreach ( var file in downloadManifest.Files )
                     {
                         if ( file.Flags.HasFlag( EDepotFileFlag.Directory ) )
                             continue;
@@ -696,7 +707,7 @@ namespace DepotDownloader
                         manifestBuilder.Append( string.Format( "{0}\n", file.FileName ) );
                     }
 
-                    File.WriteAllText( txtManifest, manifestBuilder.ToString() );
+                    File.WriteAllText( txtManifest, manifestBuilder.ToString() );*/
                     continue;
                 }
 
@@ -704,7 +715,7 @@ namespace DepotDownloader
                 ulong size_downloaded = 0;
                 string stagingDir = Path.Combine( depot.installDir, STAGING_DIR );
 
-                var filesAfterExclusions = newProtoManifest.Files.AsParallel().Where( f => TestIsFileIncluded( f.FileName ) ).ToList();
+                var filesAfterExclusions = downloadManifest.Files.AsParallel().Where( f => TestIsFileIncluded( f.FileName ) ).ToList();
 
                 // Pre-process
                 filesAfterExclusions.ForEach( file =>

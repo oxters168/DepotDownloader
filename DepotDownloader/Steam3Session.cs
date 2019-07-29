@@ -59,6 +59,10 @@ namespace DepotDownloader
 
         static readonly TimeSpan STEAM3_TIMEOUT = TimeSpan.FromSeconds( 30 );
 
+        public event ConnectedHandler onConnected;
+        public delegate void ConnectedHandler();
+        public event LoggedOnHandler onLoggedOn;
+        public delegate void LoggedOnHandler();
         public event LogonFailedHandler on2faRequired, onPassRequired, onAuthRequired, onLogonFailed;
         public delegate void LogonFailedHandler(EResult reason);
 
@@ -119,18 +123,36 @@ namespace DepotDownloader
 
             Connect();
         }
+        public async Task LoginAsAnon()
+        {
+            await Connect().ConfigureAwait(false);
+            await LoginAnon().ConfigureAwait(false);
+        }
+        private Task<bool> LoginAnon()
+        {
+            var tsc = new TaskCompletionSource<bool>();
+            LoggedOnHandler loggedOnAction = null;
+            loggedOnAction = () => { tsc.SetResult(true); onLoggedOn -= loggedOnAction; };
+            onLoggedOn += loggedOnAction;
+
+            DebugLog.WriteLine("Steam3Session", "Logging anonymously into Steam3...");
+            steamUser.LogOnAnonymous();
+            return tsc.Task;
+        }
 
         public async Task RequestAppInfo(uint appId)
         {
             if (!AppInfo.ContainsKey(appId) && !bAborted)
             {
+                int retries = 0;
                 bool appTokensReceived = false;
-                while (!bAborted && !appTokensReceived)
-                    appTokensReceived = await RequestAppTokens(appId);
+                while (!bAborted && !appTokensReceived && retries++ < 5)
+                    appTokensReceived = await RequestAppTokens(appId).ConfigureAwait(false);
 
+                retries = 0;
                 bool productInfoReceived = false;
-                while (!bAborted && !productInfoReceived)
-                    productInfoReceived = await RequestPICSProductInfo(appId);
+                while (!bAborted && !productInfoReceived && retries++ < 5)
+                    productInfoReceived = await RequestPICSProductInfo(appId).ConfigureAwait(false);
             }
         }
         private Task<bool> RequestPICSProductInfo(uint appId)
@@ -152,6 +174,11 @@ namespace DepotDownloader
                     var app = app_value.Value;
 
                     DebugLog.WriteLine("Steam3Session", "Got AppInfo for " + app.ID);
+                    if (AppInfo.ContainsKey(app.ID))
+                    {
+                        DebugLog.WriteLine("Steam3Session", "AppInfo already stored " + app.ID);
+                        continue;
+                    }
                     AppInfo.Add(app.ID, app);
                 }
 
@@ -160,6 +187,7 @@ namespace DepotDownloader
                     AppInfo.Add(app, null);
                 }
 
+                DebugLog.WriteLine("Steam3Session", "Response pending: " + appInfo.ResponsePending);
                 tsc.SetResult(!appInfo.ResponsePending);
                 subscription.Dispose();
             };
@@ -201,7 +229,7 @@ namespace DepotDownloader
             bool packageInfoReceived = false;
             while (!bAborted && !packageInfoReceived && packages.Count > 0)
             {
-                packageInfoReceived = await RequestPackageInfoInside(packages);
+                packageInfoReceived = await RequestPackageInfoInside(packages).ConfigureAwait(false);
                 packages.RemoveAll(pid => PackageInfo.ContainsKey(pid));
             }
         }
@@ -415,8 +443,13 @@ namespace DepotDownloader
             return tsc.Task;
         }
 
-        void Connect()
+        private Task<bool> Connect()
         {
+            var tsc = new TaskCompletionSource<bool>();
+            ConnectedHandler connectionAction = null;
+            connectionAction = () => { tsc.SetResult(true); onConnected -= connectionAction; };
+            onConnected += connectionAction;
+
             bAborted = false;
             bConnected = false;
             bConnecting = true;
@@ -425,6 +458,8 @@ namespace DepotDownloader
             bDidDisconnect = false;
             this.connectTime = DateTime.Now;
             this.steamClient.Connect();
+
+            return tsc.Task;
         }
 
         private void Abort( bool sendLogOff = true )
@@ -467,16 +502,14 @@ namespace DepotDownloader
             DebugLog.WriteLine("Steam3Session",  " Done!");
             bConnecting = false;
             bConnected = true;
-            if (!authenticatedUser)
-            {
-                DebugLog.WriteLine("Steam3Session",  "Logging anonymously into Steam3...");
-                steamUser.LogOnAnonymous();
-            }
-            else
+
+            if (authenticatedUser)
             {
                 DebugLog.WriteLine("Steam3Session",  "Logging '" + logonDetails.Username + "' into Steam3...");
                 steamUser.LogOn(logonDetails);
             }
+
+            onConnected?.Invoke();
         }
 
         private void DisconnectedCallback( SteamClient.DisconnectedCallback disconnected )
@@ -511,77 +544,75 @@ namespace DepotDownloader
 
         private void LogOnCallback( SteamUser.LoggedOnCallback loggedOn )
         {
-            bool isSteamGuard = loggedOn.Result == EResult.AccountLogonDenied;
-            bool is2FA = loggedOn.Result == EResult.AccountLoginDeniedNeedTwoFactor;
-            bool isLoginKey = logonDetails.ShouldRememberPassword && logonDetails.LoginKey != null && loggedOn.Result == EResult.InvalidPassword;
-
             isLoggingIn = false;
 
-            if (isSteamGuard || is2FA || isLoginKey)
+            if (logonDetails != null)
             {
-                bExpectingDisconnectRemote = true;
-                Abort(false);
-
-                if (!isLoginKey)
+                bool isSteamGuard = loggedOn.Result == EResult.AccountLogonDenied;
+                bool is2FA = loggedOn.Result == EResult.AccountLoginDeniedNeedTwoFactor;
+                bool isLoginKey = logonDetails.ShouldRememberPassword && logonDetails.LoginKey != null && loggedOn.Result == EResult.InvalidPassword;
+                if (isSteamGuard || is2FA || isLoginKey)
                 {
-                    DebugLog.WriteLine("Steam3Session",  "This account is protected by Steam Guard." );
-                }
+                    bExpectingDisconnectRemote = true;
+                    Abort(false);
 
-                if (is2FA)
+                    if (!isLoginKey)
+                    {
+                        DebugLog.WriteLine("Steam3Session", "This account is protected by Steam Guard.");
+                    }
+
+                    if (is2FA)
+                    {
+                        DebugLog.WriteLine("Steam3Session", "Please enter your 2 factor auth code from your authenticator app: ");
+                        on2faRequired?.Invoke(loggedOn.Result);
+                        //logonDetails.TwoFactorCode = Console.ReadLine();
+                    }
+                    else if (isLoginKey)
+                    {
+                        ConfigStore.TheConfig.LoginKeys.Remove(logonDetails.Username);
+                        ConfigStore.Save();
+
+                        logonDetails.LoginKey = null;
+
+                        DebugLog.WriteLine("Steam3Session", "Login key was expired. Please enter your password: ");
+                        onPassRequired?.Invoke(loggedOn.Result);
+                        //logonDetails.Password = Util.ReadPassword();
+                    }
+                    else
+                    {
+                        DebugLog.WriteLine("Steam3Session", "Please enter the authentication code sent to your email address: ");
+                        onAuthRequired?.Invoke(loggedOn.Result);
+                        //logonDetails.AuthCode = Console.ReadLine();
+                    }
+
+                    //DebugLog.WriteLine("Steam3Session",  "Retrying Steam3 connection..." );
+                    //Connect();
+
+                    return;
+                }
+                else if (loggedOn.Result == EResult.ServiceUnavailable)
                 {
-                    DebugLog.WriteLine("Steam3Session",  "Please enter your 2 factor auth code from your authenticator app: " );
-                    on2faRequired?.Invoke(loggedOn.Result);
-                    //logonDetails.TwoFactorCode = Console.ReadLine();
+                    DebugLog.WriteLine("Steam3Session", "Unable to login to Steam3: " + loggedOn.Result);
+                    Abort(false);
+
+                    onLogonFailed?.Invoke(loggedOn.Result);
+                    return;
                 }
-                else if (isLoginKey)
+                else if (loggedOn.Result != EResult.OK)
                 {
-                    ConfigStore.TheConfig.LoginKeys.Remove( logonDetails.Username );
-                    ConfigStore.Save();
+                    DebugLog.WriteLine("Steam3Session", "Unable to login to Steam3: " + loggedOn.Result);
+                    Abort();
 
-                    logonDetails.LoginKey = null;
-
-                    DebugLog.WriteLine("Steam3Session",  "Login key was expired. Please enter your password: " );
-                    onPassRequired?.Invoke(loggedOn.Result);
-                    //logonDetails.Password = Util.ReadPassword();
+                    onLogonFailed?.Invoke(loggedOn.Result);
+                    return;
                 }
-                else
-                {
-                    DebugLog.WriteLine("Steam3Session",  "Please enter the authentication code sent to your email address: " );
-                    onAuthRequired?.Invoke(loggedOn.Result);
-                    //logonDetails.AuthCode = Console.ReadLine();
-                }
-
-                //DebugLog.WriteLine("Steam3Session",  "Retrying Steam3 connection..." );
-                //Connect();
-
-                return;
-            }
-            else if (loggedOn.Result == EResult.ServiceUnavailable)
-            {
-                DebugLog.WriteLine("Steam3Session", "Unable to login to Steam3: " + loggedOn.Result);
-                Abort(false);
-
-                onLogonFailed?.Invoke(loggedOn.Result);
-                return;
-            }
-            else if (loggedOn.Result != EResult.OK)
-            {
-                DebugLog.WriteLine("Steam3Session", "Unable to login to Steam3: " + loggedOn.Result);
-                Abort();
-
-                onLogonFailed?.Invoke(loggedOn.Result);
-                return;
             }
 
             DebugLog.WriteLine("Steam3Session",  " Done!");
+            DebugLog.WriteLine("Steam3Session",  "Using Steam3 suggested CellID: " + loggedOn.CellID);
+            ContentDownloader.Config.CellID = (int)loggedOn.CellID;
 
-            //credentials.LoggedOn = true;
-
-            //if ( ContentDownloader.Config.CellID == 0 )
-            //{
-                DebugLog.WriteLine("Steam3Session",  "Using Steam3 suggested CellID: " + loggedOn.CellID);
-                ContentDownloader.Config.CellID = (int)loggedOn.CellID;
-            //}
+            onLoggedOn?.Invoke();
         }
         public void SendTwoFactor(string code)
         {

@@ -26,9 +26,12 @@ namespace DepotDownloader
         private const string CONFIG_DIR = ".DepotDownloader";
         private static readonly string STAGING_DIR = Path.Combine( CONFIG_DIR, "staging" );
 
+        public static bool IsDownloading { get; private set; }
+
         public static event ManifestReceivedHandler onManifestReceived;
         public delegate void ManifestReceivedHandler(uint appId, uint depotId, string depotName, ProtoManifest manifest);
-        //public static ProtoManifest downloadManifest;
+        public static event DownloadCompleteHandler onDownloadCompleted;
+        public delegate void DownloadCompleteHandler();
 
         private sealed class DepotDownloadInfo
         {
@@ -50,6 +53,15 @@ namespace DepotDownloader
 
         public static async Task DownloadApp(Steam3Session steam3, string installPath, uint appId, bool manifestOnly = false, params string[] fileList)
         {
+            IsDownloading = true;
+            DownloadCompleteHandler downloadCompleteAction = null;
+            downloadCompleteAction = () =>
+            {
+                onDownloadCompleted -= downloadCompleteAction;
+                IsDownloading = false;
+            };
+            onDownloadCompleted += downloadCompleteAction;
+
             //Config.CellID = 0;
             Config.UsingFileList = fileList != null && fileList.Length > 0;
             if (Config.UsingFileList)
@@ -69,32 +81,32 @@ namespace DepotDownloader
             Shutdown();
         }
 
-        static bool CreateDirectories( uint depotId, uint depotVersion, out string installDir )
+        static bool CreateDirectories(uint depotId, uint depotVersion, out string installDir)
         {
             installDir = null;
             try
             {
-                if ( string.IsNullOrWhiteSpace( ContentDownloader.Config.InstallDirectory ) )
+                if (string.IsNullOrWhiteSpace(ContentDownloader.Config.InstallDirectory))
                 {
-                    Directory.CreateDirectory( DEFAULT_DOWNLOAD_DIR );
+                    Directory.CreateDirectory(DEFAULT_DOWNLOAD_DIR);
 
-                    string depotPath = Path.Combine( DEFAULT_DOWNLOAD_DIR, depotId.ToString() );
-                    Directory.CreateDirectory( depotPath );
+                    string depotPath = Path.Combine(DEFAULT_DOWNLOAD_DIR, depotId.ToString());
+                    Directory.CreateDirectory(depotPath);
 
-                    installDir = Path.Combine( depotPath, depotVersion.ToString() );
-                    Directory.CreateDirectory( installDir );
+                    installDir = Path.Combine(depotPath, depotVersion.ToString());
+                    Directory.CreateDirectory(installDir);
 
-                    Directory.CreateDirectory( Path.Combine( installDir, CONFIG_DIR ) );
-                    Directory.CreateDirectory( Path.Combine( installDir, STAGING_DIR ) );
+                    Directory.CreateDirectory(Path.Combine(installDir, CONFIG_DIR));
+                    Directory.CreateDirectory(Path.Combine(installDir, STAGING_DIR));
                 }
                 else
                 {
-                    Directory.CreateDirectory( ContentDownloader.Config.InstallDirectory );
+                    Directory.CreateDirectory(ContentDownloader.Config.InstallDirectory);
 
                     installDir = ContentDownloader.Config.InstallDirectory;
 
-                    Directory.CreateDirectory( Path.Combine( installDir, CONFIG_DIR ) );
-                    Directory.CreateDirectory( Path.Combine( installDir, STAGING_DIR ) );
+                    Directory.CreateDirectory(Path.Combine(installDir, CONFIG_DIR));
+                    Directory.CreateDirectory(Path.Combine(installDir, STAGING_DIR));
                 }
             }
             catch
@@ -351,37 +363,6 @@ namespace DepotDownloader
             }
         }
 
-        /*public static bool Initialize( Steam3Session steam3 )
-        {
-            string loginKey = null;
-
-            if ( username != null && Config.RememberPassword )
-            {
-                _ = ConfigStore.TheConfig.LoginKeys.TryGetValue( username, out loginKey );
-            }
-
-            steam3 = new Steam3Session(
-                new SteamUser.LogOnDetails()
-                {
-                    Username = username,
-                    Password = loginKey == null ? password : null,
-                    ShouldRememberPassword = Config.RememberPassword,
-                    LoginKey = loginKey,
-                }
-            );
-
-            steam3Credentials = steam3.WaitForCredentials();
-
-            if ( !steam3Credentials.IsValid )
-            {
-                DebugLog.WriteLine("ContentDownloader",  "Unable to get steam3 credentials." );
-                return false;
-            }
-
-            cdnPool = new CDNClientPool( steam3 );
-            return true;
-        }*/
-
         public static void Shutdown()
         {
             if (cdnPool != null)
@@ -389,12 +370,6 @@ namespace DepotDownloader
                 cdnPool.Shutdown();
                 cdnPool = null;
             }
-
-            //if ( steam3 == null )
-            //    return;
-
-            //steam3.TryWaitForLoginKey();
-            //steam3.Disconnect();
         }
 
         public static async Task DownloadPubfileAsync(Steam3Session steam3, ulong publishedFileId)
@@ -511,8 +486,6 @@ namespace DepotDownloader
 
         static async Task<DepotDownloadInfo> GetDepotInfo(Steam3Session steam3, uint depotId, uint appId, ulong manifestId, string branch)
         {
-            //var tsc = new TaskCompletionSource<DepotDownloadInfo>();
-
             if (steam3 != null && appId != INVALID_APP_ID)
                 await steam3.RequestAppInfo(appId).ConfigureAwait(false);
 
@@ -596,8 +569,6 @@ namespace DepotDownloader
                 cdnPool.ExhaustedToken = cts;
 
                 ProtoManifest oldProtoManifest = null;
-                //ProtoManifest newProtoManifest = null;
-                //downloadManifest = null;
                 ProtoManifest downloadManifest = null;
                 string configDir = Path.Combine( depot.installDir, CONFIG_DIR );
 
@@ -766,7 +737,6 @@ namespace DepotDownloader
                                 File.Delete( fileStagingPath );
                             }
 
-                            //FileStream fs = null;
                             List<ProtoManifest.ChunkData> neededChunks;
                             FileInfo fi = new FileInfo( fileFinalPath );
                             if ( !fi.Exists )
@@ -861,8 +831,6 @@ namespace DepotDownloader
                                     size_downloaded += file.TotalSize;
                                     size_downloaded += file.TotalSize;
                                     DebugLog.WriteLine("ContentDownloader", ((float)size_downloaded / complete_download_size) * 100.0f + "% " + fileFinalPath);
-                                    //if ( fs != null )
-                                    //    fs.Dispose();
                                     return;
                                 }
                                 else
@@ -957,8 +925,6 @@ namespace DepotDownloader
                                 size_downloaded += chunk.UncompressedLength;
                             }
 
-                            //fs.Dispose();
-
                             DebugLog.WriteLine("ContentDownloader", ((float)size_downloaded / (float)complete_download_size) * 100.0f + "% " + fileFinalPath );
                         }
                         finally
@@ -970,8 +936,8 @@ namespace DepotDownloader
                     tasks[ i ] = task;
                 }
 
-                await Task.WhenAll( tasks ).ConfigureAwait( false );
-                //await Task.WhenAll(tasks);
+                //await Task.WhenAll(tasks).ConfigureAwait(false);
+                await Task.WhenAll(tasks);
 
                 ConfigStore.TheConfig.LastManifests[ depot.id ] = depot.manifestId;
                 ConfigStore.Save();
@@ -980,6 +946,7 @@ namespace DepotDownloader
             }
 
             DebugLog.WriteLine("ContentDownloader", "Total downloaded: " + TotalBytesCompressed + " bytes (" + TotalBytesUncompressed + " bytes uncompressed) from " + depots.Count + " depots");
+            onDownloadCompleted?.Invoke();
         }
     }
 }

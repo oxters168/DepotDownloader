@@ -766,15 +766,17 @@ namespace DepotDownloader
                                 File.Delete( fileStagingPath );
                             }
 
-                            FileStream fs = null;
+                            //FileStream fs = null;
                             List<ProtoManifest.ChunkData> neededChunks;
                             FileInfo fi = new FileInfo( fileFinalPath );
                             if ( !fi.Exists )
                             {
                                 // create new file. need all chunks
-                                fs = File.Create( fileFinalPath );
-                                fs.SetLength( ( long )file.TotalSize );
-                                neededChunks = new List<ProtoManifest.ChunkData>( file.Chunks );
+                                using (FileStream fs = File.Create(fileFinalPath))
+                                {
+                                    fs.SetLength((long)file.TotalSize);
+                                    neededChunks = new List<ProtoManifest.ChunkData>(file.Chunks);
+                                }
                             }
                             else
                             {
@@ -810,31 +812,32 @@ namespace DepotDownloader
 
                                         File.Move( fileFinalPath, fileStagingPath );
 
-                                        fs = File.Open( fileFinalPath, FileMode.Create );
-                                        fs.SetLength( ( long )file.TotalSize );
-
-                                        using ( var fsOld = File.Open( fileStagingPath, FileMode.Open ) )
+                                        using (FileStream fs = File.Open(fileFinalPath, FileMode.Create))
                                         {
-                                            foreach ( var match in matchingChunks )
+                                            fs.SetLength((long)file.TotalSize);
+
+                                            using (var fsOld = File.Open(fileStagingPath, FileMode.Open))
                                             {
-                                                fsOld.Seek( ( long )match.OldChunk.Offset, SeekOrigin.Begin );
-
-                                                byte[] tmp = new byte[ match.OldChunk.UncompressedLength ];
-                                                fsOld.Read( tmp, 0, tmp.Length );
-
-                                                byte[] adler = Util.AdlerHash( tmp );
-                                                if ( !adler.SequenceEqual( match.OldChunk.Checksum ) )
+                                                foreach (var match in matchingChunks)
                                                 {
-                                                    neededChunks.Add( match.NewChunk );
-                                                }
-                                                else
-                                                {
-                                                    fs.Seek( ( long )match.NewChunk.Offset, SeekOrigin.Begin );
-                                                    fs.Write( tmp, 0, tmp.Length );
+                                                    fsOld.Seek((long)match.OldChunk.Offset, SeekOrigin.Begin);
+
+                                                    byte[] tmp = new byte[match.OldChunk.UncompressedLength];
+                                                    fsOld.Read(tmp, 0, tmp.Length);
+
+                                                    byte[] adler = Util.AdlerHash(tmp);
+                                                    if (!adler.SequenceEqual(match.OldChunk.Checksum))
+                                                    {
+                                                        neededChunks.Add(match.NewChunk);
+                                                    }
+                                                    else
+                                                    {
+                                                        fs.Seek((long)match.NewChunk.Offset, SeekOrigin.Begin);
+                                                        fs.Write(tmp, 0, tmp.Length);
+                                                    }
                                                 }
                                             }
                                         }
-
                                         File.Delete( fileStagingPath );
                                     }
                                 }
@@ -842,13 +845,15 @@ namespace DepotDownloader
                                 {
                                     // No old manifest or file not in old manifest. We must validate.
 
-                                    fs = File.Open( fileFinalPath, FileMode.Open );
-                                    if ( ( ulong )fi.Length != file.TotalSize )
+                                    using (FileStream fs = File.Open(fileFinalPath, FileMode.Open))
                                     {
-                                        fs.SetLength( ( long )file.TotalSize );
-                                    }
+                                        if ((ulong)fi.Length != file.TotalSize)
+                                        {
+                                            fs.SetLength((long)file.TotalSize);
+                                        }
 
-                                    neededChunks = Util.ValidateSteam3FileChecksums( fs, file.Chunks.OrderBy( x => x.Offset ).ToArray() );
+                                        neededChunks = Util.ValidateSteam3FileChecksums(fs, file.Chunks.OrderBy(x => x.Offset).ToArray());
+                                    }
                                 }
 
                                 if (neededChunks.Count() == 0)
@@ -856,8 +861,8 @@ namespace DepotDownloader
                                     size_downloaded += file.TotalSize;
                                     size_downloaded += file.TotalSize;
                                     DebugLog.WriteLine("ContentDownloader", ((float)size_downloaded / complete_download_size) * 100.0f + "% " + fileFinalPath);
-                                    if ( fs != null )
-                                        fs.Dispose();
+                                    //if ( fs != null )
+                                    //    fs.Dispose();
                                     return;
                                 }
                                 else
@@ -942,13 +947,17 @@ namespace DepotDownloader
                                 TotalBytesUncompressed += chunk.UncompressedLength;
                                 DepotBytesUncompressed += chunk.UncompressedLength;
 
-                                fs.Seek( ( long )chunk.Offset, SeekOrigin.Begin );
-                                fs.Write( chunkData.Data, 0, chunkData.Data.Length );
+                                using (FileStream fs = File.Open(fileFinalPath, FileMode.Open))
+                                {
+
+                                    fs.Seek((long)chunk.Offset, SeekOrigin.Begin);
+                                    fs.Write(chunkData.Data, 0, chunkData.Data.Length);
+                                }
 
                                 size_downloaded += chunk.UncompressedLength;
                             }
 
-                            fs.Dispose();
+                            //fs.Dispose();
 
                             DebugLog.WriteLine("ContentDownloader", ((float)size_downloaded / (float)complete_download_size) * 100.0f + "% " + fileFinalPath );
                         }

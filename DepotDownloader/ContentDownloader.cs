@@ -53,15 +53,6 @@ namespace DepotDownloader
 
         public static async Task DownloadApp(Steam3Session steam3, string installPath, uint appId, bool manifestOnly = false, params string[] fileList)
         {
-            IsDownloading = true;
-            DownloadCompleteHandler downloadCompleteAction = null;
-            downloadCompleteAction = () =>
-            {
-                onDownloadCompleted -= downloadCompleteAction;
-                IsDownloading = false;
-            };
-            onDownloadCompleted += downloadCompleteAction;
-
             //Config.CellID = 0;
             Config.UsingFileList = fileList != null && fileList.Length > 0;
             if (Config.UsingFileList)
@@ -475,12 +466,18 @@ namespace DepotDownloader
 
             try
             {
-                await DownloadSteam3Async(appId, infos).ConfigureAwait(false);
-                //await DownloadSteam3Async(appId, infos);
+                IsDownloading = true;
+                await DownloadSteam3Async(appId, infos);
             }
             catch (OperationCanceledException)
             {
                 DebugLog.WriteLine("ContentDownloader", "App " + appId + " was not completely downloaded.");
+            }
+            finally
+            {
+                DebugLog.WriteLine("ContentDownloader", "Download completed");
+                IsDownloading = false;
+                onDownloadCompleted?.Invoke();
             }
         }
 
@@ -946,7 +943,6 @@ namespace DepotDownloader
             }
 
             DebugLog.WriteLine("ContentDownloader", "Total downloaded: " + TotalBytesCompressed + " bytes (" + TotalBytesUncompressed + " bytes uncompressed) from " + depots.Count + " depots");
-            onDownloadCompleted?.Invoke();
         }
     }
 }

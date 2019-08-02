@@ -26,7 +26,10 @@ namespace DepotDownloader
         private const string CONFIG_DIR = ".DepotDownloader";
         private static readonly string STAGING_DIR = Path.Combine( CONFIG_DIR, "staging" );
 
+        private static ulong complete_download_size;
+        private static ulong size_downloaded;
         public static bool IsDownloading { get; private set; }
+        public static float DownloadPercent { get { return (float)size_downloaded / complete_download_size; } }
 
         public static event ManifestReceivedHandler onManifestReceived;
         public delegate void ManifestReceivedHandler(uint appId, uint depotId, string depotName, ProtoManifest manifest);
@@ -682,8 +685,8 @@ namespace DepotDownloader
                     continue;
                 }
 
-                ulong complete_download_size = 0;
-                ulong size_downloaded = 0;
+                complete_download_size = 0;
+                size_downloaded = 0;
                 string stagingDir = Path.Combine( depot.installDir, STAGING_DIR );
 
                 var filesAfterExclusions = downloadManifest.Files.AsParallel().Where( f => TestIsFileIncluded( f.FileName ) ).ToList();
@@ -827,7 +830,7 @@ namespace DepotDownloader
                                 {
                                     size_downloaded += file.TotalSize;
                                     size_downloaded += file.TotalSize;
-                                    DebugLog.WriteLine("ContentDownloader", ((float)size_downloaded / complete_download_size) * 100.0f + "% " + fileFinalPath);
+                                    DebugLog.WriteLine("ContentDownloader", DownloadPercent * 100.0f + "% " + fileFinalPath);
                                     return;
                                 }
                                 else
@@ -922,7 +925,7 @@ namespace DepotDownloader
                                 size_downloaded += chunk.UncompressedLength;
                             }
 
-                            DebugLog.WriteLine("ContentDownloader", ((float)size_downloaded / (float)complete_download_size) * 100.0f + "% " + fileFinalPath );
+                            DebugLog.WriteLine("ContentDownloader", DownloadPercent * 100.0f + "% " + fileFinalPath );
                         }
                         finally
                         {

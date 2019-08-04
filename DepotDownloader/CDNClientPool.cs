@@ -52,7 +52,7 @@ namespace DepotDownloader
             {
                 try
                 {
-                    var cdnServers = await ContentServerDirectoryService.LoadAsync(this.steamSession.steamClient.Configuration, ContentDownloader.Config.CellID, shutdownToken.Token).ConfigureAwait(false);
+                    var cdnServers = await ContentServerDirectoryService.LoadAsync(this.steamSession.steamClient.Configuration, ContentDownloader.Config.CellID, shutdownToken.Token);
                     if (cdnServers != null)
                     {
                         return cdnServers;
@@ -79,7 +79,7 @@ namespace DepotDownloader
                 if (availableServerEndpoints.Count < ServerEndpointMinimumSize &&
                     steamSession.steamClient.IsConnected)
                 {
-                    var servers = await FetchBootstrapServerListAsync().ConfigureAwait(false);
+                    var servers = await FetchBootstrapServerListAsync();
 
                     if (servers == null)
                     {
@@ -149,7 +149,7 @@ namespace DepotDownloader
                 {
                     if (server.Type == "CDN" || server.Type == "SteamCache")
                     {
-                        await steamSession.RequestCDNAuthToken(appId, depotId, server.Host).ConfigureAwait(false);
+                        await steamSession.RequestCDNAuthToken(appId, depotId, server.Host);
 
                         var cdnKey = string.Format("{0:D}:{1}", depotId, steamSession.ResolveCDNTopLevelHost(server.Host));
                         SteamApps.CDNAuthTokenCallback authTokenCallback;
@@ -197,7 +197,7 @@ namespace DepotDownloader
             {
                 if (server.Type == "CDN" || server.Type == "SteamCache")
                 {
-                    await steamSession.RequestCDNAuthToken(appId, depotId, server.Host).ConfigureAwait(false);
+                    await steamSession.RequestCDNAuthToken(appId, depotId, server.Host);
 
                     var cdnKey = string.Format("{0:D}:{1}", depotId, steamSession.ResolveCDNTopLevelHost(server.Host));
                     SteamApps.CDNAuthTokenCallback authTokenCallback;

@@ -125,8 +125,8 @@ namespace DepotDownloader
         }
         public async Task LoginAsAnon()
         {
-            await Connect().ConfigureAwait(false);
-            await LoginAnon().ConfigureAwait(false);
+            await Connect();
+            await LoginAnon();
         }
         private Task<bool> LoginAnon()
         {
@@ -147,12 +147,12 @@ namespace DepotDownloader
                 int retries = 0;
                 bool appTokensReceived = false;
                 while (!bAborted && !appTokensReceived && retries++ < 5)
-                    appTokensReceived = await RequestAppTokens(appId).ConfigureAwait(false);
+                    appTokensReceived = await RequestAppTokens(appId);
 
                 retries = 0;
                 bool productInfoReceived = false;
                 while (!bAborted && !productInfoReceived && retries++ < 5)
-                    productInfoReceived = await RequestPICSProductInfo(appId).ConfigureAwait(false);
+                    productInfoReceived = await RequestPICSProductInfo(appId);
             }
         }
         private Task<bool> RequestPICSProductInfo(uint appId)
@@ -229,7 +229,7 @@ namespace DepotDownloader
             bool packageInfoReceived = false;
             while (!bAborted && !packageInfoReceived && packages.Count > 0)
             {
-                packageInfoReceived = await RequestPackageInfoInside(packages).ConfigureAwait(false);
+                packageInfoReceived = await RequestPackageInfoInside(packages);
                 packages.RemoveAll(pid => PackageInfo.ContainsKey(pid));
             }
         }

@@ -8,8 +8,12 @@ using System.Text;
 
 namespace DepotDownloader
 {
-    static class Util
+    public static class Util
     {
+        public static bool UriEquals(string path1, string path2)
+        {
+            return path1.Replace("\\", "/").Equals(path2.Replace("\\", "/"), StringComparison.OrdinalIgnoreCase);
+        }
         public static string GetSteamOS()
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))

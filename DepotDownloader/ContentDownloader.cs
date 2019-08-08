@@ -17,6 +17,7 @@ namespace DepotDownloader
         public const uint INVALID_DEPOT_ID = uint.MaxValue;
         public const ulong INVALID_MANIFEST_ID = ulong.MaxValue;
         public const string DEFAULT_BRANCH = "Public";
+        private const string DEBUG_NAME_FILES = "ContentDownloaderFiles";
 
         public static DownloadConfig Config = new DownloadConfig();
 
@@ -71,7 +72,11 @@ namespace DepotDownloader
 
             cdnPool = new CDNClientPool(steam3);
             //await DownloadAppAsync(steam3, appId, INVALID_DEPOT_ID, INVALID_MANIFEST_ID, branch, os, false).ConfigureAwait(false);
-            await DownloadAppAsync(steam3, appId, INVALID_DEPOT_ID, INVALID_MANIFEST_ID, branch, os, false);
+            try
+            {
+                await DownloadAppAsync(steam3, appId, INVALID_DEPOT_ID, INVALID_MANIFEST_ID, branch, os, false);
+            }
+            catch(Exception e) { DebugLog.WriteLine("ErrorContentDownloader", e.ToString()); }
             Shutdown();
         }
 
@@ -119,7 +124,7 @@ namespace DepotDownloader
             if (Config.FilesToDownload != null)
                 foreach ( string fileListEntry in Config.FilesToDownload )
                 {
-                    if ( fileListEntry.Equals( filename, StringComparison.OrdinalIgnoreCase ) )
+                    if (Util.UriEquals(fileListEntry, filename))
                         return true;
                 }
 
@@ -582,8 +587,12 @@ namespace DepotDownloader
                 if ( lastManifestId != INVALID_MANIFEST_ID )
                 {
                     var oldManifestFileName = Path.Combine( configDir, string.Format( "{0}.bin", lastManifestId ) );
-                    if ( File.Exists( oldManifestFileName ) )
-                        oldProtoManifest = ProtoManifest.LoadFromFile( oldManifestFileName );
+                    DebugLog.WriteLine(DEBUG_NAME_FILES, "Checking if " + oldManifestFileName + " exists");
+                    if (File.Exists(oldManifestFileName))
+                    {
+                        DebugLog.WriteLine(DEBUG_NAME_FILES, oldManifestFileName + " exists, reading!");
+                        oldProtoManifest = ProtoManifest.LoadFromFile(oldManifestFileName);
+                    }
                 }
 
                 if ( lastManifestId == depot.manifestId && oldProtoManifest != null )
@@ -669,21 +678,7 @@ namespace DepotDownloader
                     onManifestReceived?.Invoke(appId, depot.id, depot.contentName, downloadManifest);
 
                 if ( Config.DownloadManifestOnly )
-                {
-                    /*StringBuilder manifestBuilder = new StringBuilder();
-                    string txtManifest = Path.Combine( depot.installDir, string.Format( "manifest_{0}.txt", depot.id ) );
-
-                    foreach ( var file in downloadManifest.Files )
-                    {
-                        if ( file.Flags.HasFlag( EDepotFileFlag.Directory ) )
-                            continue;
-
-                        manifestBuilder.Append( string.Format( "{0}\n", file.FileName ) );
-                    }
-
-                    File.WriteAllText( txtManifest, manifestBuilder.ToString() );*/
                     continue;
-                }
 
                 complete_download_size = 0;
                 size_downloaded = 0;
@@ -732,16 +727,20 @@ namespace DepotDownloader
                             string fileStagingPath = Path.Combine( stagingDir, file.FileName );
 
                             // This may still exist if the previous run exited before cleanup
+                            DebugLog.WriteLine(DEBUG_NAME_FILES, "Checking if " + fileStagingPath + " exists");
                             if ( File.Exists( fileStagingPath ) )
                             {
+                                DebugLog.WriteLine(DEBUG_NAME_FILES, fileStagingPath + " exists, deleting!");
                                 File.Delete( fileStagingPath );
                             }
 
                             List<ProtoManifest.ChunkData> neededChunks;
                             FileInfo fi = new FileInfo( fileFinalPath );
+                            DebugLog.WriteLine(DEBUG_NAME_FILES, "Checking if " + fileFinalPath + " exists");
                             if ( !fi.Exists )
                             {
                                 // create new file. need all chunks
+                                DebugLog.WriteLine(DEBUG_NAME_FILES, fileFinalPath + " does not exist, creating!");
                                 using (FileStream fs = File.Create(fileFinalPath))
                                 {
                                     fs.SetLength((long)file.TotalSize);
@@ -780,12 +779,15 @@ namespace DepotDownloader
                                             }
                                         }
 
+                                        DebugLog.WriteLine(DEBUG_NAME_FILES, "Moving file " + fileFinalPath + " to " + fileStagingPath);
                                         File.Move( fileFinalPath, fileStagingPath );
 
+                                        DebugLog.WriteLine(DEBUG_NAME_FILES, "Creating file " + fileFinalPath);
                                         using (FileStream fs = File.Open(fileFinalPath, FileMode.Create))
                                         {
                                             fs.SetLength((long)file.TotalSize);
 
+                                            DebugLog.WriteLine(DEBUG_NAME_FILES, "Opening file " + fileStagingPath);
                                             using (var fsOld = File.Open(fileStagingPath, FileMode.Open))
                                             {
                                                 foreach (var match in matchingChunks)
@@ -808,6 +810,7 @@ namespace DepotDownloader
                                                 }
                                             }
                                         }
+                                        DebugLog.WriteLine(DEBUG_NAME_FILES, "Deleting file " + fileStagingPath);
                                         File.Delete( fileStagingPath );
                                     }
                                 }
@@ -815,6 +818,7 @@ namespace DepotDownloader
                                 {
                                     // No old manifest or file not in old manifest. We must validate.
 
+                                    DebugLog.WriteLine(DEBUG_NAME_FILES, "Opening file " + fileFinalPath);
                                     using (FileStream fs = File.Open(fileFinalPath, FileMode.Open))
                                     {
                                         if ((ulong)fi.Length != file.TotalSize)
@@ -839,92 +843,96 @@ namespace DepotDownloader
                                 }
                             }
 
-                            foreach ( var chunk in neededChunks )
+                            DebugLog.WriteLine(DEBUG_NAME_FILES, "Opening file " + fileFinalPath);
+                            using (FileStream fs = File.Open(fileFinalPath, FileMode.Open))
                             {
-                                if ( cts.IsCancellationRequested ) break;
-
-                                string chunkID = Util.EncodeHexString( chunk.ChunkID );
-                                CDNClient.DepotChunk chunkData = null;
-
-                                while ( !cts.IsCancellationRequested )
+                                foreach (var chunk in neededChunks)
                                 {
-                                    CDNClient client;
-                                    try
-                                    {
-                                        client = await cdnPool.GetConnectionForDepotAsync( appId, depot.id, depot.depotKey, cts.Token ).ConfigureAwait( false );
-                                        //client = await cdnPool.GetConnectionForDepotAsync(appId, depot.id, depot.depotKey, cts.Token);
-                                    }
-                                    catch ( OperationCanceledException )
-                                    {
-                                        break;
-                                    }
+                                    if (cts.IsCancellationRequested) break;
 
-                                    DepotManifest.ChunkData data = new DepotManifest.ChunkData();
-                                    data.ChunkID = chunk.ChunkID;
-                                    data.Checksum = chunk.Checksum;
-                                    data.Offset = chunk.Offset;
-                                    data.CompressedLength = chunk.CompressedLength;
-                                    data.UncompressedLength = chunk.UncompressedLength;
+                                    string chunkID = Util.EncodeHexString(chunk.ChunkID);
+                                    CDNClient.DepotChunk chunkData = null;
 
-                                    try
+                                    while (!cts.IsCancellationRequested)
                                     {
-                                        chunkData = await client.DownloadDepotChunkAsync( depot.id, data ).ConfigureAwait( false );
-                                        //chunkData = await client.DownloadDepotChunkAsync(depot.id, data);
-                                        cdnPool.ReturnConnection( client );
-                                        break;
-                                    }
-                                    catch ( WebException e )
-                                    {
-                                        cdnPool.ReturnBrokenConnection( client );
-
-                                        if ( e.Status == WebExceptionStatus.ProtocolError )
+                                        CDNClient client;
+                                        try
                                         {
-                                            var response = e.Response as HttpWebResponse;
-                                            if ( response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden )
+                                            client = await cdnPool.GetConnectionForDepotAsync(appId, depot.id, depot.depotKey, cts.Token).ConfigureAwait(false);
+                                            //client = await cdnPool.GetConnectionForDepotAsync(appId, depot.id, depot.depotKey, cts.Token);
+                                        }
+                                        catch (OperationCanceledException)
+                                        {
+                                            break;
+                                        }
+
+                                        DepotManifest.ChunkData data = new DepotManifest.ChunkData();
+                                        data.ChunkID = chunk.ChunkID;
+                                        data.Checksum = chunk.Checksum;
+                                        data.Offset = chunk.Offset;
+                                        data.CompressedLength = chunk.CompressedLength;
+                                        data.UncompressedLength = chunk.UncompressedLength;
+
+                                        try
+                                        {
+                                            chunkData = await client.DownloadDepotChunkAsStreamAsync(depot.id, data).ConfigureAwait(false);
+                                            //chunkData = await client.DownloadDepotChunkAsync(depot.id, data);
+                                            cdnPool.ReturnConnection(client);
+                                            break;
+                                        }
+                                        catch (WebException e)
+                                        {
+                                            cdnPool.ReturnBrokenConnection(client);
+
+                                            if (e.Status == WebExceptionStatus.ProtocolError)
                                             {
-                                                DebugLog.WriteLine("ContentDownloader", "Encountered 401 for chunk " + chunkID + ". Aborting.");
-                                                cts.Cancel();
-                                                break;
+                                                var response = e.Response as HttpWebResponse;
+                                                if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+                                                {
+                                                    DebugLog.WriteLine("ContentDownloader", "Encountered 401 for chunk " + chunkID + ". Aborting.");
+                                                    cts.Cancel();
+                                                    break;
+                                                }
+                                                else
+                                                {
+                                                    DebugLog.WriteLine("ContentDownloader", "Encountered error downloading chunk " + chunkID + ": " + response.StatusCode);
+                                                }
                                             }
                                             else
                                             {
-                                                DebugLog.WriteLine("ContentDownloader", "Encountered error downloading chunk " + chunkID + ": " + response.StatusCode );
+                                                DebugLog.WriteLine("ContentDownloader", "Encountered error downloading chunk " + chunkID + ": " + e.Status);
                                             }
                                         }
-                                        else
+                                        catch (Exception e)
                                         {
-                                            DebugLog.WriteLine("ContentDownloader", "Encountered error downloading chunk " + chunkID + ": " + e.Status );
+                                            cdnPool.ReturnBrokenConnection(client);
+                                            DebugLog.WriteLine("ContentDownloader", "Encountered unexpected error downloading chunk " + chunkID + ": " + e.Message);
                                         }
                                     }
-                                    catch ( Exception e )
+
+                                    if (chunkData == null)
                                     {
-                                        cdnPool.ReturnBrokenConnection( client );
-                                        DebugLog.WriteLine("ContentDownloader",  "Encountered unexpected error downloading chunk " + chunkID + ": " + e.Message );
+                                        DebugLog.WriteLine("ContentDownloader", "Failed to find any server with chunk " + chunkID + " for depot " + depot.id + ". Aborting.");
+                                        cts.Cancel();
+                                        return;
                                     }
+
+                                    TotalBytesCompressed += chunk.CompressedLength;
+                                    DepotBytesCompressed += chunk.CompressedLength;
+                                    TotalBytesUncompressed += chunk.UncompressedLength;
+                                    DepotBytesUncompressed += chunk.UncompressedLength;
+
+                                    using (chunkData.DataStream)
+                                    {
+
+                                        fs.Seek((long)chunk.Offset, SeekOrigin.Begin);
+                                        chunkData.DataStream.CopyTo(fs);
+                                        //fs.Write(chunkData.Data, 0, chunkData.Data.Length);
+                                    }
+
+                                    size_downloaded += chunk.UncompressedLength;
                                 }
-
-                                if ( chunkData == null )
-                                {
-                                    DebugLog.WriteLine("ContentDownloader", "Failed to find any server with chunk " + chunkID + " for depot " + depot.id + ". Aborting.");
-                                    cts.Cancel();
-                                    return;
-                                }
-
-                                TotalBytesCompressed += chunk.CompressedLength;
-                                DepotBytesCompressed += chunk.CompressedLength;
-                                TotalBytesUncompressed += chunk.UncompressedLength;
-                                DepotBytesUncompressed += chunk.UncompressedLength;
-
-                                using (FileStream fs = File.Open(fileFinalPath, FileMode.Open))
-                                {
-
-                                    fs.Seek((long)chunk.Offset, SeekOrigin.Begin);
-                                    fs.Write(chunkData.Data, 0, chunkData.Data.Length);
-                                }
-
-                                size_downloaded += chunk.UncompressedLength;
                             }
-
                             DebugLog.WriteLine("ContentDownloader", DownloadPercent * 100.0f + "% " + fileFinalPath );
                         }
                         finally

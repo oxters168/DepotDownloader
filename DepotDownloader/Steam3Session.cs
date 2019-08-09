@@ -169,6 +169,7 @@ namespace DepotDownloader
             IDisposable subscription = null;
             Action<SteamApps.PICSProductInfoCallback> cbMethod = (appInfo) =>
             {
+                subscription.Dispose();
                 foreach (var app_value in appInfo.Apps)
                 {
                     var app = app_value.Value;
@@ -189,7 +190,6 @@ namespace DepotDownloader
 
                 DebugLog.WriteLine("Steam3Session", "Response pending: " + appInfo.ResponsePending);
                 tsc.SetResult(!appInfo.ResponsePending);
-                subscription.Dispose();
             };
 
             subscription = callbacks.Subscribe(steamApps.PICSGetProductInfo(new List<SteamApps.PICSRequest>() { request }, new List<SteamApps.PICSRequest>() { }), cbMethod);
@@ -203,6 +203,7 @@ namespace DepotDownloader
             IDisposable subscription = null;
             Action<SteamApps.PICSTokensCallback> cbMethodTokens = (appTokens) =>
             {
+                subscription.Dispose();
                 if (appTokens.AppTokensDenied.Contains(appId))
                 {
                     DebugLog.WriteLine("Steam3Session", "Insufficient privileges to get access token for app " + appId);
@@ -213,7 +214,6 @@ namespace DepotDownloader
                     this.AppTokens.Add(token_dict.Key, token_dict.Value);
                 }
                 tsc.SetResult(true);
-                subscription.Dispose();
             };
 
             subscription = callbacks.Subscribe(steamApps.PICSGetAccessTokens(new List<uint>() { appId }, new List<uint>() { }), cbMethodTokens);
@@ -240,6 +240,7 @@ namespace DepotDownloader
             IDisposable subscription = null;
             Action<SteamApps.PICSProductInfoCallback> cbMethod = (packageInfo) =>
             {
+                subscription.Dispose();
                 foreach (var package_value in packageInfo.Packages)
                 {
                     var package = package_value.Value;
@@ -255,7 +256,6 @@ namespace DepotDownloader
 
                 DebugLog.WriteLine("Steam3Session", "Package info response pending: " + packageInfo.ResponsePending);
                 tsc.SetResult(!packageInfo.ResponsePending);
-                subscription.Dispose();
             };
 
             subscription = callbacks.Subscribe(steamApps.PICSGetProductInfo(new List<uint>(), packages), cbMethod);
@@ -269,8 +269,8 @@ namespace DepotDownloader
             IDisposable subscription = null;
             Action<SteamApps.FreeLicenseCallback> cbMethod = (resultInfo) =>
             {
-                tsc.SetResult(resultInfo.GrantedApps.Contains(appId));
                 subscription.Dispose();
+                tsc.SetResult(resultInfo.GrantedApps.Contains(appId));
             };
 
             subscription = callbacks.Subscribe(steamApps.RequestFreeLicense(appId), cbMethod);
@@ -297,6 +297,7 @@ namespace DepotDownloader
                 IDisposable subscription = null;
                 Action<SteamApps.AppOwnershipTicketCallback> cbMethod = (appTicket) =>
                 {
+                    subscription.Dispose();
                     if (appTicket.Result != EResult.OK)
                     {
                         DebugLog.WriteLine("Steam3Session", "Unable to get appticket for " + appTicket.AppID + ": " + appTicket.Result);
@@ -308,7 +309,6 @@ namespace DepotDownloader
                         AppTickets[appTicket.AppID] = appTicket.Ticket;
                     }
                     tsc.SetResult(true);
-                    subscription.Dispose();
                 };
 
                 subscription = callbacks.Subscribe(steamApps.GetAppOwnershipTicket(appId), cbMethod);
@@ -330,6 +330,7 @@ namespace DepotDownloader
                 IDisposable subscription = null;
                 Action<SteamApps.DepotKeyCallback> cbMethod = (depotKey) =>
                 {
+                    subscription.Dispose();
                     DebugLog.WriteLine("Steam3Session", "Got depot key for " + depotKey.DepotID + " result: " + depotKey.Result);
 
                     if (depotKey.Result != EResult.OK)
@@ -340,7 +341,6 @@ namespace DepotDownloader
 
                     DepotKeys[depotKey.DepotID] = depotKey.DepotKey;
                     tsc.SetResult(true);
-                    subscription.Dispose();
                 };
 
                 subscription = callbacks.Subscribe(steamApps.GetDepotDecryptionKey(depotId, appid), cbMethod);
@@ -376,6 +376,7 @@ namespace DepotDownloader
                 IDisposable subscription = null;
                 Action<SteamApps.CDNAuthTokenCallback> cbMethod = (cdnAuth) =>
                 {
+                    subscription.Dispose();
                     DebugLog.WriteLine("Steam3Session", "Got CDN auth token for " + host + " result: " + cdnAuth.Result + " (expires " + cdnAuth.Expiration + ")");
 
                     if (cdnAuth.Result != EResult.OK)
@@ -387,7 +388,6 @@ namespace DepotDownloader
                     CDNAuthTokens.TryAdd(cdnKey, cdnAuth);
 
                     tsc.SetResult(true);
-                    subscription.Dispose();
                 };
 
                 subscription = callbacks.Subscribe(steamApps.GetCDNAuthToken(appid, depotid, host), cbMethod);
@@ -402,6 +402,7 @@ namespace DepotDownloader
             IDisposable subscription = null;
             Action<SteamApps.CheckAppBetaPasswordCallback> cbMethod = ( appPassword ) =>
             {
+                subscription.Dispose();
                 DebugLog.WriteLine("Steam3Session", "Retrieved " + appPassword.BetaPasswords.Count + " beta keys with result: " + appPassword.Result);
 
                 foreach (var entry in appPassword.BetaPasswords)
@@ -409,7 +410,6 @@ namespace DepotDownloader
                     AppBetaPasswords[entry.Key] = entry.Value;
                 }
                 tsc.SetResult(true);
-                subscription.Dispose();
             };
 
             subscription = callbacks.Subscribe(steamApps.CheckAppBetaPassword(appid, password), cbMethod);
@@ -426,6 +426,7 @@ namespace DepotDownloader
             IDisposable subscription = null;
             Action<SteamUnifiedMessages.ServiceMethodResponse> cbMethod = callback =>
             {
+                subscription.Dispose();
                 if ( callback.Result == EResult.OK )
                 {
                     var response = callback.GetDeserializedResponse<CPublishedFile_GetDetails_Response>();
@@ -436,7 +437,6 @@ namespace DepotDownloader
                     tsc.SetResult(null);
                     throw new Exception( $"EResult {(int)callback.Result} ({callback.Result}) while retrieving UGC id for pubfile {pubFile}.");
                 }
-                subscription.Dispose();
             };
 
             subscription = callbacks.Subscribe(steamPublishedFile.SendMessage(api => api.GetDetails(pubFileRequest)), cbMethod);
@@ -515,14 +515,15 @@ namespace DepotDownloader
         private void DisconnectedCallback( SteamClient.DisconnectedCallback disconnected )
         {
             bDidDisconnect = true;
-            isLoggingIn = false;
 
             if ( disconnected.UserInitiated || bExpectingDisconnectRemote )
             {
+                isLoggingIn = false;
                 DebugLog.WriteLine("Steam3Session",  "Disconnected from Steam" );
             }
             else if ( connectionBackoff >= 10 )
             {
+                isLoggingIn = false;
                 DebugLog.WriteLine("Steam3Session",  "Could not connect to Steam after 10 tries" );
                 Abort( false );
             }

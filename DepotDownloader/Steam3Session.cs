@@ -521,10 +521,10 @@ namespace DepotDownloader
                 isLoggingIn = false;
                 DebugLog.WriteLine("Steam3Session",  "Disconnected from Steam" );
             }
-            else if ( connectionBackoff >= 10 )
+            else if ( connectionBackoff >= 3 )
             {
                 isLoggingIn = false;
-                DebugLog.WriteLine("Steam3Session",  "Could not connect to Steam after 10 tries" );
+                DebugLog.WriteLine("Steam3Session",  "Could not connect to Steam after 3 tries" );
                 Abort( false );
             }
             else if ( !bAborted )

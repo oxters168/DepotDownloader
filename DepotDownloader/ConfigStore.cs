@@ -36,7 +36,7 @@ namespace DepotDownloader
             get { return TheConfig != null; }
         }
 
-        public static ConfigStore TheConfig = null;
+        public static ConfigStorer.ConfigStore TheConfig = null;
 
         public static void LoadFromFile(string filename)
         {
@@ -47,11 +47,15 @@ namespace DepotDownloader
             {
                 using (FileStream fs = File.Open(filename, FileMode.Open))
                 using (DeflateStream ds = new DeflateStream(fs, CompressionMode.Decompress))
-                    TheConfig = ProtoBuf.Serializer.Deserialize<ConfigStore>(ds);
+                {
+                    //TheConfig = ProtoBuf.Serializer.Deserialize<ConfigStore>(ds);
+                    ConfigStoreSerializer css = new ConfigStoreSerializer();
+                    TheConfig = (ConfigStorer.ConfigStore)css.Deserialize(ds, null, typeof(ConfigStorer.ConfigStore));
+                }
             }
             else
             {
-                TheConfig = new ConfigStore();
+                TheConfig = new ConfigStorer.ConfigStore();
             }
 
             TheConfig.FileName = filename;
@@ -64,7 +68,11 @@ namespace DepotDownloader
 
             using (FileStream fs = File.Open(TheConfig.FileName, FileMode.Create))
             using (DeflateStream ds = new DeflateStream(fs, CompressionMode.Compress))
-                ProtoBuf.Serializer.Serialize<ConfigStore>(ds, TheConfig);
+            {
+                //ProtoBuf.Serializer.Serialize<ConfigStore>(ds, TheConfig);
+                ConfigStoreSerializer css = new ConfigStoreSerializer();
+                css.Serialize(ds, TheConfig);
+            }
         }
     }
 }

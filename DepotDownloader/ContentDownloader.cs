@@ -591,7 +591,7 @@ namespace DepotDownloader
                     if (File.Exists(oldManifestFileName))
                     {
                         DebugLog.WriteLine(DEBUG_NAME_FILES, oldManifestFileName + " exists, reading!");
-                        oldProtoManifest = ProtoManifest.LoadFromFile(oldManifestFileName);
+                        oldProtoManifest = MakeManifestFromFake(ProtoManifest.LoadFromFile(oldManifestFileName));
                     }
                 }
 
@@ -605,7 +605,7 @@ namespace DepotDownloader
                     var newManifestFileName = Path.Combine( configDir, string.Format( "{0}.bin", depot.manifestId ) );
                     if ( newManifestFileName != null )
                     {
-                        downloadManifest = ProtoManifest.LoadFromFile( newManifestFileName );
+                        downloadManifest = MakeManifestFromFake(ProtoManifest.LoadFromFile( newManifestFileName ));
                     }
 
                     if ( downloadManifest != null )
@@ -954,6 +954,22 @@ namespace DepotDownloader
             }
 
             DebugLog.WriteLine("ContentDownloader", "Total downloaded: " + TotalBytesCompressed + " bytes (" + TotalBytesUncompressed + " bytes uncompressed) from " + depots.Count + " depots");
+        }
+
+        private static ProtoManifest MakeManifestFromFake(ProtoManifestation.ProtoManifest fakeManifest)
+        {
+            ProtoManifest realManifest = new ProtoManifest(null, fakeManifest.ID);
+            List<ProtoManifest.FileData> files = new List<ProtoManifest.FileData>();
+            foreach (var file in fakeManifest.Files)
+            {
+                List<ProtoManifest.ChunkData> chunks = new List<ProtoManifest.ChunkData>();
+                foreach (var chunk in file.Chunks)
+                {
+                    chunks.Add(new ProtoManifest.ChunkData(chunk.ChunkID, chunk.Checksum, chunk.Offset, chunk.CompressedLength, chunk.UncompressedLength));
+                }
+                files.Add(new ProtoManifest.FileData(file.FileName, chunks, (EDepotFileFlag)file.Flags, file.TotalSize, file.FileHash));
+            }
+            return realManifest;
         }
     }
 }

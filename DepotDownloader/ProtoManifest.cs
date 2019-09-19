@@ -31,6 +31,14 @@ namespace DepotDownloader
                 Chunks = new List<ChunkData>();
             }
 
+            public FileData(string fileName, List<ChunkData> chunks, EDepotFileFlag flags, ulong totalSize, byte[] fileHash)
+            {
+                FileName = fileName;
+                Chunks = chunks;
+                Flags = flags;
+                TotalSize = totalSize;
+                FileHash = fileHash;
+            }
             public FileData(DepotManifest.FileData sourceData) : this()
             {
                 FileName = sourceData.FileName;
@@ -71,6 +79,14 @@ namespace DepotDownloader
         [ProtoContract(SkipConstructor = true)]
         public class ChunkData
         {
+            public ChunkData(byte[] chunkId, byte[] checksum, ulong offset, uint compressedLength, uint uncompressedLength)
+            {
+                ChunkID = chunkId;
+                Checksum = checksum;
+                Offset = offset;
+                CompressedLength = compressedLength;
+                UncompressedLength = uncompressedLength;
+            }
             public ChunkData(DepotManifest.ChunkData sourceChunk)
             {
                 ChunkID = sourceChunk.ChunkID;
@@ -117,21 +133,29 @@ namespace DepotDownloader
         [ProtoMember(2)]
         public ulong ID { get; private set; }
 
-        public static ProtoManifest LoadFromFile(string filename)
+        public static ProtoManifestation.ProtoManifest LoadFromFile(string filename)
         {
             if (!File.Exists(filename))
                 return null;
 
             using (FileStream fs = File.Open(filename, FileMode.Open))
             using (DeflateStream ds = new DeflateStream(fs, CompressionMode.Decompress))
-                return ProtoBuf.Serializer.Deserialize<ProtoManifest>(ds);
+            {
+                //return ProtoBuf.Serializer.Deserialize<ProtoManifest>(ds);
+                ProtoManifestSerializer pms = new ProtoManifestSerializer();
+                return (ProtoManifestation.ProtoManifest)pms.Deserialize(ds, null, typeof(ProtoManifestation.ProtoManifest));
+            }
         }
 
         public void SaveToFile(string filename)
         {
             using (FileStream fs = File.Open(filename, FileMode.Create))
             using (DeflateStream ds = new DeflateStream(fs, CompressionMode.Compress))
-                ProtoBuf.Serializer.Serialize<ProtoManifest>(ds, this);
+            {
+                //ProtoBuf.Serializer.Serialize<ProtoManifest>(ds, this);
+                ProtoManifestSerializer pms = new ProtoManifestSerializer();
+                pms.Serialize(ds, this);
+            }
         }
     }
 }

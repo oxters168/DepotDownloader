@@ -684,7 +684,7 @@ namespace DepotDownloader
                 size_downloaded = 0;
                 string stagingDir = Path.Combine( depot.installDir, STAGING_DIR );
 
-                var filesAfterExclusions = downloadManifest.Files.AsParallel().Where( f => TestIsFileIncluded( f.FileName ) ).ToList();
+                var filesAfterExclusions = downloadManifest.Files.Where( f => TestIsFileIncluded( f.FileName ) ).ToList();
 
                 // Pre-process
                 filesAfterExclusions.ForEach( file =>

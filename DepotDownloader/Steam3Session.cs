@@ -59,7 +59,7 @@ namespace DepotDownloader
 
         static readonly TimeSpan STEAM3_TIMEOUT = TimeSpan.FromSeconds( 30 );
 
-        public event ConnectedHandler onConnected;
+        public event ConnectedHandler onConnected, onDisconnected;
         public delegate void ConnectedHandler();
         public event LoggedOnHandler onLoggedOn;
         public delegate void LoggedOnHandler();
@@ -96,6 +96,36 @@ namespace DepotDownloader
 
         public void LoginAs(SteamUser.LogOnDetails details)
         {
+            SetLoginDetails(details);
+
+            DebugLog.WriteLine("Steam3Session", "Connecting to Steam3...");
+
+            Connect();
+        }
+        public Task<bool> LoginAsAsync(SteamUser.LogOnDetails details)
+        {
+            TaskCompletionSource<bool> tcs = new TaskCompletionSource<bool>();
+
+            LoggedOnHandler loggedOnCallback = null;
+            LogonFailedHandler logonFailedCallback = null;
+            ConnectedHandler disconnectedCallback = null;
+            loggedOnCallback = () => { tcs.SetResult(true); onLoggedOn -= loggedOnCallback; onLogonFailed -= logonFailedCallback; onDisconnected -= disconnectedCallback; };
+            logonFailedCallback = (result) => { tcs.SetResult(false); onLogonFailed -= logonFailedCallback; onLoggedOn -= loggedOnCallback; onDisconnected -= disconnectedCallback; };
+            disconnectedCallback = () => { tcs.SetResult(false); onDisconnected -= disconnectedCallback; onLoggedOn -= loggedOnCallback; onLogonFailed -= logonFailedCallback; };
+            onLoggedOn += loggedOnCallback;
+            onLogonFailed += logonFailedCallback;
+            onDisconnected += disconnectedCallback;
+
+            SetLoginDetails(details);
+
+            DebugLog.WriteLine("Steam3Session", "Connecting to Steam3...");
+
+            Connect();
+
+            return tcs.Task;
+        }
+        private void SetLoginDetails(SteamUser.LogOnDetails details)
+        {
             this.AppTickets = new Dictionary<uint, byte[]>();
             this.AppTokens = new Dictionary<uint, ulong>();
             this.DepotKeys = new Dictionary<uint, byte[]>();
@@ -118,10 +148,6 @@ namespace DepotDownloader
 
                 isLoggingIn = true;
             }
-
-            DebugLog.WriteLine("Steam3Session", "Connecting to Steam3...");
-
-            Connect();
         }
         public async Task LoginAsAnon()
         {
@@ -130,14 +156,21 @@ namespace DepotDownloader
         }
         private Task<bool> LoginAnon()
         {
-            var tsc = new TaskCompletionSource<bool>();
-            LoggedOnHandler loggedOnAction = null;
-            loggedOnAction = () => { tsc.SetResult(true); onLoggedOn -= loggedOnAction; };
-            onLoggedOn += loggedOnAction;
+            var tcs = new TaskCompletionSource<bool>();
+
+            LoggedOnHandler loggedOnCallback = null;
+            LogonFailedHandler logonFailedCallback = null;
+            ConnectedHandler disconnectedCallback = null;
+            loggedOnCallback = () => { tcs.SetResult(true); onLoggedOn -= loggedOnCallback; onLogonFailed -= logonFailedCallback; onDisconnected -= disconnectedCallback; };
+            logonFailedCallback = (result) => { tcs.SetResult(false); onLogonFailed -= logonFailedCallback; onLoggedOn -= loggedOnCallback; onDisconnected -= disconnectedCallback; };
+            disconnectedCallback = () => { tcs.SetResult(false); onDisconnected -= disconnectedCallback; onLoggedOn -= loggedOnCallback; onLogonFailed -= logonFailedCallback; };
+            onLoggedOn += loggedOnCallback;
+            onLogonFailed += logonFailedCallback;
+            onDisconnected += disconnectedCallback;
 
             DebugLog.WriteLine("Steam3Session", "Logging anonymously into Steam3...");
             steamUser.LogOnAnonymous();
-            return tsc.Task;
+            return tcs.Task;
         }
 
         public async Task RequestAppInfo(uint appId)
@@ -446,9 +479,11 @@ namespace DepotDownloader
         private Task<bool> Connect()
         {
             var tsc = new TaskCompletionSource<bool>();
-            ConnectedHandler connectionAction = null;
-            connectionAction = () => { tsc.SetResult(true); onConnected -= connectionAction; };
+            ConnectedHandler connectionAction = null, disconnectionAction = null;
+            connectionAction = () => { tsc.SetResult(true); onConnected -= connectionAction; onDisconnected -= disconnectionAction; };
+            disconnectionAction = () => { tsc.SetResult(false); onDisconnected -= disconnectionAction; onConnected -= connectionAction; };
             onConnected += connectionAction;
+            onDisconnected += disconnectionAction;
 
             bAborted = false;
             bConnected = false;
@@ -520,12 +555,14 @@ namespace DepotDownloader
             {
                 isLoggingIn = false;
                 DebugLog.WriteLine("Steam3Session",  "Disconnected from Steam" );
+                onDisconnected?.Invoke();
             }
             else if ( connectionBackoff >= 3 )
             {
                 isLoggingIn = false;
                 DebugLog.WriteLine("Steam3Session",  "Could not connect to Steam after 3 tries" );
                 Abort( false );
+                onDisconnected?.Invoke();
             }
             else if ( !bAborted )
             {
@@ -588,6 +625,7 @@ namespace DepotDownloader
 
                     //DebugLog.WriteLine("Steam3Session",  "Retrying Steam3 connection..." );
                     //Connect();
+                    onLogonFailed?.Invoke(loggedOn.Result);
 
                     return;
                 }

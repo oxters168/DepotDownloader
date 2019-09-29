@@ -126,9 +126,9 @@ namespace DepotDownloader
             using (FileStream fs = File.Open(filename, FileMode.Open))
             using (DeflateStream ds = new DeflateStream(fs, CompressionMode.Decompress))
             {
-                //ProtoBuf.Meta.TypeModel model = (ProtoBuf.Meta.TypeModel)Activator.CreateInstance(Type.GetType("MyProtoModel, MyProtoModel"));
-                //return (ProtoManifest)model.Deserialize(ds, null, typeof(ProtoManifest));
-                return ProtoBuf.Serializer.Deserialize<ProtoManifest>(ds);
+                ProtoBuf.Meta.TypeModel model = (ProtoBuf.Meta.TypeModel)Activator.CreateInstance(Type.GetType("MyProtoModel, MyProtoModel"));
+                return (ProtoManifest)model.Deserialize(ds, null, typeof(ProtoManifest));
+                //return ProtoBuf.Serializer.Deserialize<ProtoManifest>(ds);
             }
         }
 
@@ -137,9 +137,9 @@ namespace DepotDownloader
             using (FileStream fs = File.Open(filename, FileMode.Create))
             using (DeflateStream ds = new DeflateStream(fs, CompressionMode.Compress))
             {
-                //ProtoBuf.Meta.TypeModel model = (ProtoBuf.Meta.TypeModel)Activator.CreateInstance(Type.GetType("MyProtoModel, MyProtoModel"));
-                //model.Serialize(ds, this);
-                ProtoBuf.Serializer.Serialize<ProtoManifest>(ds, this);
+                ProtoBuf.Meta.TypeModel model = (ProtoBuf.Meta.TypeModel)Activator.CreateInstance(Type.GetType("MyProtoModel, MyProtoModel"));
+                model.Serialize(ds, this);
+                //ProtoBuf.Serializer.Serialize<ProtoManifest>(ds, this);
             }
         }
     }

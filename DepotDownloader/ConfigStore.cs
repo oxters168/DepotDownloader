@@ -48,9 +48,9 @@ namespace DepotDownloader
                 using (FileStream fs = File.Open(filename, FileMode.Open))
                 using (DeflateStream ds = new DeflateStream(fs, CompressionMode.Decompress))
                 {
-                    //ProtoBuf.Meta.TypeModel model = (ProtoBuf.Meta.TypeModel)Activator.CreateInstance(Type.GetType("MyProtoModel, MyProtoModel"));
-                    //TheConfig = (ConfigStore)model.Deserialize(ds, null, typeof(ConfigStore));
-                    TheConfig = ProtoBuf.Serializer.Deserialize<ConfigStore>(ds);
+                    ProtoBuf.Meta.TypeModel model = (ProtoBuf.Meta.TypeModel)Activator.CreateInstance(Type.GetType("MyProtoModel, MyProtoModel"));
+                    TheConfig = (ConfigStore)model.Deserialize(ds, null, typeof(ConfigStore));
+                    //TheConfig = ProtoBuf.Serializer.Deserialize<ConfigStore>(ds);
                 }
             }
             else
@@ -69,9 +69,9 @@ namespace DepotDownloader
             using (FileStream fs = File.Open(TheConfig.FileName, FileMode.Create))
             using (DeflateStream ds = new DeflateStream(fs, CompressionMode.Compress))
             {
-                //ProtoBuf.Meta.TypeModel model = (ProtoBuf.Meta.TypeModel)Activator.CreateInstance(Type.GetType("MyProtoModel, MyProtoModel"));
-                //model.Serialize(ds, TheConfig);
-                ProtoBuf.Serializer.Serialize<ConfigStore>(ds, TheConfig);
+                ProtoBuf.Meta.TypeModel model = (ProtoBuf.Meta.TypeModel)Activator.CreateInstance(Type.GetType("MyProtoModel, MyProtoModel"));
+                model.Serialize(ds, TheConfig);
+                //ProtoBuf.Serializer.Serialize<ConfigStore>(ds, TheConfig);
             }
         }
     }

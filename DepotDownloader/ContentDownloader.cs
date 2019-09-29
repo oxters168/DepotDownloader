@@ -55,7 +55,7 @@ namespace DepotDownloader
             }
         }
 
-        public static async Task DownloadApp(Steam3Session steam3, string installPath, uint appId, bool manifestOnly = false, Action downloadCompleteAction = null, params string[] fileList)
+        public static async Task DownloadApp(Steam3Session steam3, string installPath, uint appId, bool manifestOnly = false, CancellationTokenSource outsideCancelSource = null, Action downloadCompleteAction = null, params string[] fileList)
         {
             //Config.CellID = 0;
             Config.UsingFileList = fileList != null && fileList.Length > 0;
@@ -73,7 +73,7 @@ namespace DepotDownloader
             cdnPool = new CDNClientPool(steam3);
             try
             {
-                await DownloadAppAsync(steam3, appId, INVALID_DEPOT_ID, INVALID_MANIFEST_ID, branch, os, false, downloadCompleteAction);
+                await DownloadAppAsync(steam3, appId, INVALID_DEPOT_ID, INVALID_MANIFEST_ID, branch, os, false, outsideCancelSource, downloadCompleteAction);
             }
             catch(Exception e) { DebugLog.WriteLine("ErrorContentDownloader", e.ToString()); }
             Shutdown();
@@ -370,13 +370,13 @@ namespace DepotDownloader
             }
         }
 
-        public static async Task DownloadPubfileAsync(Steam3Session steam3, ulong publishedFileId, Action downloadCompleteAction = null)
+        public static async Task DownloadPubfileAsync(Steam3Session steam3, ulong publishedFileId, CancellationTokenSource outsideCancelSource = null, Action downloadCompleteAction = null)
         {
             var details = await steam3.GetPubfileDetails(publishedFileId);
 
             if (details.hcontent_file > 0)
             {
-                await DownloadAppAsync(steam3, details.consumer_appid, details.consumer_appid, details.hcontent_file, DEFAULT_BRANCH, null, true, downloadCompleteAction);
+                await DownloadAppAsync(steam3, details.consumer_appid, details.consumer_appid, details.hcontent_file, DEFAULT_BRANCH, null, true, outsideCancelSource, downloadCompleteAction);
             }
             else
             {
@@ -384,7 +384,7 @@ namespace DepotDownloader
             }
         }
 
-        public static async Task DownloadAppAsync(Steam3Session steam3, uint appId, uint depotId, ulong manifestId, string branch, string os, bool isUgc, Action downloadCompleteAction = null)
+        public static async Task DownloadAppAsync(Steam3Session steam3, uint appId, uint depotId, ulong manifestId, string branch, string os, bool isUgc, CancellationTokenSource outsideCancelSource = null, Action downloadCompleteAction = null)
         {
             if (steam3 != null)
                 await steam3.RequestAppInfo(appId);
@@ -464,6 +464,12 @@ namespace DepotDownloader
 
             foreach (var depot in depotIDs)
             {
+                if (outsideCancelSource != null && outsideCancelSource.IsCancellationRequested)
+                {
+                    DebugLog.WriteLine("ContentDownloader", "Cancelled from outside during second call");
+                    break;
+                }
+
                 var info = await GetDepotInfo(steam3, depot, appId, manifestId, branch);
                 if (info != null)
                 {
@@ -474,7 +480,7 @@ namespace DepotDownloader
             try
             {
                 IsDownloading = true;
-                await DownloadSteam3Async(appId, infos, downloadCompleteAction);
+                await DownloadSteam3Async(appId, infos, outsideCancelSource, downloadCompleteAction);
             }
             catch (OperationCanceledException)
             {
@@ -555,7 +561,7 @@ namespace DepotDownloader
             public ProtoManifest.ChunkData NewChunk { get; private set; }
         }
 
-        private static async Task DownloadSteam3Async(uint appId, List<DepotDownloadInfo> depots, Action downloadCompleteAction = null)
+        private static async Task DownloadSteam3Async(uint appId, List<DepotDownloadInfo> depots, CancellationTokenSource outsideCancelSource = null, Action downloadCompleteAction = null)
         {
             ulong TotalBytesCompressed = 0;
             ulong TotalBytesUncompressed = 0;
@@ -569,6 +575,12 @@ namespace DepotDownloader
 
                 CancellationTokenSource cts = new CancellationTokenSource();
                 cdnPool.ExhaustedToken = cts;
+                if (outsideCancelSource != null && outsideCancelSource.IsCancellationRequested)
+                {
+                    cts.Cancel();
+                    DebugLog.WriteLine("ContentDownloader", "Cancelled from outside ending depot loop");
+                    break;
+                }
 
                 ProtoManifest oldProtoManifest = null;
                 ProtoManifest downloadManifest = null;
@@ -617,6 +629,13 @@ namespace DepotDownloader
 
                         while ( depotManifest == null )
                         {
+                            if (outsideCancelSource != null && outsideCancelSource.IsCancellationRequested)
+                            {
+                                cts.Cancel();
+                                DebugLog.WriteLine("ContentDownloader", "Cancelled from outside ending inner depot loop");
+                                break;
+                            }
+
                             CDNClient client = null;
                             try
                             {
@@ -709,11 +728,18 @@ namespace DepotDownloader
                 var tasks = new Task[ files.Length ];
                 for ( var i = 0; i < files.Length; i++ )
                 {
+                    if (outsideCancelSource != null && outsideCancelSource.IsCancellationRequested)
+                    {
+                        cts.Cancel();
+                        DebugLog.WriteLine("ContentDownloader", "Cancelled from outside during file downloads");
+                        break;
+                    }
+
                     var file = files[ i ];
                     var task = Task.Run( async () =>
                     {
                         cts.Token.ThrowIfCancellationRequested();
-                        
+
                         try
                         {
                             await semaphore.WaitAsync().ConfigureAwait( false );
@@ -871,8 +897,8 @@ namespace DepotDownloader
 
                                         try
                                         {
-                                            //chunkData = await client.DownloadDepotChunkAsStreamAsync(depot.id, data).ConfigureAwait(false);
-                                            chunkData = client.DownloadDepotChunkAsStreamAsync(depot.id, data).Result;
+                                            chunkData = await client.DownloadDepotChunkAsStreamAsync(depot.id, data).ConfigureAwait(false);
+                                            //chunkData = client.DownloadDepotChunkAsStreamAsync(depot.id, data).Result;
                                             //chunkData = await client.DownloadDepotChunkAsync(depot.id, data);
                                             cdnPool.ReturnConnection(client);
                                             break;
@@ -923,7 +949,8 @@ namespace DepotDownloader
                                     {
 
                                         fs.Seek((long)chunk.Offset, SeekOrigin.Begin);
-                                        chunkData.DataStream.CopyTo(fs);
+                                        await chunkData.DataStream.CopyToAsync(fs, 81920, outsideCancelSource.Token);
+                                        //chunkData.DataStream.CopyTo(fs);
                                         //fs.Write(chunkData.Data, 0, chunkData.Data.Length);
                                     }
 

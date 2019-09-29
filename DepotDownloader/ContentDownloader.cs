@@ -55,7 +55,7 @@ namespace DepotDownloader
             }
         }
 
-        public static async Task DownloadApp(Steam3Session steam3, string installPath, uint appId, bool manifestOnly = false, params string[] fileList)
+        public static async Task DownloadApp(Steam3Session steam3, string installPath, uint appId, bool manifestOnly = false, Action downloadCompleteAction = null, params string[] fileList)
         {
             //Config.CellID = 0;
             Config.UsingFileList = fileList != null && fileList.Length > 0;
@@ -71,10 +71,9 @@ namespace DepotDownloader
             string os = "windows";
 
             cdnPool = new CDNClientPool(steam3);
-            //await DownloadAppAsync(steam3, appId, INVALID_DEPOT_ID, INVALID_MANIFEST_ID, branch, os, false).ConfigureAwait(false);
             try
             {
-                await DownloadAppAsync(steam3, appId, INVALID_DEPOT_ID, INVALID_MANIFEST_ID, branch, os, false);
+                await DownloadAppAsync(steam3, appId, INVALID_DEPOT_ID, INVALID_MANIFEST_ID, branch, os, false, downloadCompleteAction);
             }
             catch(Exception e) { DebugLog.WriteLine("ErrorContentDownloader", e.ToString()); }
             Shutdown();
@@ -371,13 +370,13 @@ namespace DepotDownloader
             }
         }
 
-        public static async Task DownloadPubfileAsync(Steam3Session steam3, ulong publishedFileId)
+        public static async Task DownloadPubfileAsync(Steam3Session steam3, ulong publishedFileId, Action downloadCompleteAction = null)
         {
             var details = await steam3.GetPubfileDetails(publishedFileId);
 
             if (details.hcontent_file > 0)
             {
-                await DownloadAppAsync(steam3, details.consumer_appid, details.consumer_appid, details.hcontent_file, DEFAULT_BRANCH, null, true);
+                await DownloadAppAsync(steam3, details.consumer_appid, details.consumer_appid, details.hcontent_file, DEFAULT_BRANCH, null, true, downloadCompleteAction);
             }
             else
             {
@@ -385,7 +384,7 @@ namespace DepotDownloader
             }
         }
 
-        public static async Task DownloadAppAsync(Steam3Session steam3, uint appId, uint depotId, ulong manifestId, string branch, string os, bool isUgc)
+        public static async Task DownloadAppAsync(Steam3Session steam3, uint appId, uint depotId, ulong manifestId, string branch, string os, bool isUgc, Action downloadCompleteAction = null)
         {
             if (steam3 != null)
                 await steam3.RequestAppInfo(appId);
@@ -475,7 +474,7 @@ namespace DepotDownloader
             try
             {
                 IsDownloading = true;
-                await DownloadSteam3Async(appId, infos);
+                await DownloadSteam3Async(appId, infos, downloadCompleteAction);
             }
             catch (OperationCanceledException)
             {
@@ -484,8 +483,6 @@ namespace DepotDownloader
             finally
             {
                 DebugLog.WriteLine("ContentDownloader", "Download completed");
-                IsDownloading = false;
-                onDownloadCompleted?.Invoke();
             }
         }
 
@@ -558,7 +555,7 @@ namespace DepotDownloader
             public ProtoManifest.ChunkData NewChunk { get; private set; }
         }
 
-        private static async Task DownloadSteam3Async(uint appId, List<DepotDownloadInfo> depots)
+        private static async Task DownloadSteam3Async(uint appId, List<DepotDownloadInfo> depots, Action downloadCompleteAction = null)
         {
             ulong TotalBytesCompressed = 0;
             ulong TotalBytesUncompressed = 0;
@@ -677,7 +674,7 @@ namespace DepotDownloader
                 if (downloadManifest != null)
                     onManifestReceived?.Invoke(appId, depot.id, depot.contentName, downloadManifest);
 
-                if ( Config.DownloadManifestOnly )
+                if (Config.DownloadManifestOnly)
                     continue;
 
                 complete_download_size = 0;
@@ -833,7 +830,6 @@ namespace DepotDownloader
                                 if (neededChunks.Count() == 0)
                                 {
                                     size_downloaded += file.TotalSize;
-                                    size_downloaded += file.TotalSize;
                                     DebugLog.WriteLine("ContentDownloader", DownloadPercent * 100.0f + "% " + fileFinalPath);
                                     return;
                                 }
@@ -875,7 +871,8 @@ namespace DepotDownloader
 
                                         try
                                         {
-                                            chunkData = await client.DownloadDepotChunkAsStreamAsync(depot.id, data).ConfigureAwait(false);
+                                            //chunkData = await client.DownloadDepotChunkAsStreamAsync(depot.id, data).ConfigureAwait(false);
+                                            chunkData = client.DownloadDepotChunkAsStreamAsync(depot.id, data).Result;
                                             //chunkData = await client.DownloadDepotChunkAsync(depot.id, data);
                                             cdnPool.ReturnConnection(client);
                                             break;
@@ -944,8 +941,7 @@ namespace DepotDownloader
                     tasks[ i ] = task;
                 }
 
-                //await Task.WhenAll(tasks).ConfigureAwait(false);
-                await Task.WhenAll(tasks);
+                Task.WaitAll(tasks);
 
                 ConfigStore.TheConfig.LastManifests[ depot.id ] = depot.manifestId;
                 ConfigStore.Save();
@@ -953,6 +949,9 @@ namespace DepotDownloader
                 DebugLog.WriteLine("ContentDownloader", "Depot " + depot.id + " - Downloaded " + DepotBytesCompressed + " bytes (" + DepotBytesUncompressed + " bytes uncompressed)");
             }
 
+            IsDownloading = false;
+            downloadCompleteAction?.Invoke();
+            onDownloadCompleted?.Invoke();
             DebugLog.WriteLine("ContentDownloader", "Total downloaded: " + TotalBytesCompressed + " bytes (" + TotalBytesUncompressed + " bytes uncompressed) from " + depots.Count + " depots");
         }
     }

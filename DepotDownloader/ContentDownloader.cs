@@ -55,7 +55,7 @@ namespace DepotDownloader
             }
         }
 
-        public static async Task DownloadApp(Steam3Session steam3, string installPath, uint appId, bool manifestOnly = false, CancellationTokenSource outsideCancelSource = null, Action downloadCompleteAction = null, params string[] fileList)
+        public static async Task DownloadApp(Steam3Session steam3, string installPath, uint appId, CancellationToken outsideCancelToken, bool manifestOnly = false, Action downloadCompleteAction = null, params string[] fileList)
         {
             //Config.CellID = 0;
             Config.UsingFileList = fileList != null && fileList.Length > 0;
@@ -73,7 +73,7 @@ namespace DepotDownloader
             cdnPool = new CDNClientPool(steam3);
             try
             {
-                await DownloadAppAsync(steam3, appId, INVALID_DEPOT_ID, INVALID_MANIFEST_ID, branch, os, false, outsideCancelSource, downloadCompleteAction);
+                await DownloadAppAsync(steam3, appId, INVALID_DEPOT_ID, INVALID_MANIFEST_ID, branch, os, false, outsideCancelToken, downloadCompleteAction);
             }
             catch(Exception e) { DebugLog.WriteLine("ErrorContentDownloader", e.ToString()); }
             Shutdown();
@@ -370,13 +370,13 @@ namespace DepotDownloader
             }
         }
 
-        public static async Task DownloadPubfileAsync(Steam3Session steam3, ulong publishedFileId, CancellationTokenSource outsideCancelSource = null, Action downloadCompleteAction = null)
+        public static async Task DownloadPubfileAsync(Steam3Session steam3, ulong publishedFileId, CancellationToken outsideCancelToken, Action downloadCompleteAction = null)
         {
             var details = await steam3.GetPubfileDetails(publishedFileId);
 
             if (details.hcontent_file > 0)
             {
-                await DownloadAppAsync(steam3, details.consumer_appid, details.consumer_appid, details.hcontent_file, DEFAULT_BRANCH, null, true, outsideCancelSource, downloadCompleteAction);
+                await DownloadAppAsync(steam3, details.consumer_appid, details.consumer_appid, details.hcontent_file, DEFAULT_BRANCH, null, true, outsideCancelToken, downloadCompleteAction);
             }
             else
             {
@@ -384,7 +384,7 @@ namespace DepotDownloader
             }
         }
 
-        public static async Task DownloadAppAsync(Steam3Session steam3, uint appId, uint depotId, ulong manifestId, string branch, string os, bool isUgc, CancellationTokenSource outsideCancelSource = null, Action downloadCompleteAction = null)
+        public static async Task DownloadAppAsync(Steam3Session steam3, uint appId, uint depotId, ulong manifestId, string branch, string os, bool isUgc, CancellationToken outsideCancelToken, Action downloadCompleteAction = null)
         {
             if (steam3 != null)
                 await steam3.RequestAppInfo(appId);
@@ -464,7 +464,7 @@ namespace DepotDownloader
 
             foreach (var depot in depotIDs)
             {
-                if (outsideCancelSource != null && outsideCancelSource.IsCancellationRequested)
+                if (outsideCancelToken.IsCancellationRequested)
                 {
                     DebugLog.WriteLine("ContentDownloader", "Cancelled from outside during second call");
                     break;
@@ -480,7 +480,7 @@ namespace DepotDownloader
             try
             {
                 IsDownloading = true;
-                await DownloadSteam3Async(appId, infos, outsideCancelSource, downloadCompleteAction);
+                await DownloadSteam3Async(appId, infos, outsideCancelToken, downloadCompleteAction);
             }
             catch (OperationCanceledException)
             {
@@ -561,7 +561,7 @@ namespace DepotDownloader
             public ProtoManifest.ChunkData NewChunk { get; private set; }
         }
 
-        private static async Task DownloadSteam3Async(uint appId, List<DepotDownloadInfo> depots, CancellationTokenSource outsideCancelSource = null, Action downloadCompleteAction = null)
+        private static async Task DownloadSteam3Async(uint appId, List<DepotDownloadInfo> depots, CancellationToken outsideCancelToken, Action downloadCompleteAction = null)
         {
             ulong TotalBytesCompressed = 0;
             ulong TotalBytesUncompressed = 0;
@@ -575,7 +575,7 @@ namespace DepotDownloader
 
                 CancellationTokenSource cts = new CancellationTokenSource();
                 cdnPool.ExhaustedToken = cts;
-                if (outsideCancelSource != null && outsideCancelSource.IsCancellationRequested)
+                if (outsideCancelToken.IsCancellationRequested)
                 {
                     cts.Cancel();
                     DebugLog.WriteLine("ContentDownloader", "Cancelled from outside ending depot loop");
@@ -629,7 +629,7 @@ namespace DepotDownloader
 
                         while ( depotManifest == null )
                         {
-                            if (outsideCancelSource != null && outsideCancelSource.IsCancellationRequested)
+                            if (outsideCancelToken.IsCancellationRequested)
                             {
                                 cts.Cancel();
                                 DebugLog.WriteLine("ContentDownloader", "Cancelled from outside ending inner depot loop");
@@ -728,7 +728,7 @@ namespace DepotDownloader
                 var tasks = new Task[ files.Length ];
                 for ( var i = 0; i < files.Length; i++ )
                 {
-                    if (outsideCancelSource != null && outsideCancelSource.IsCancellationRequested)
+                    if (outsideCancelToken.IsCancellationRequested)
                     {
                         cts.Cancel();
                         DebugLog.WriteLine("ContentDownloader", "Cancelled from outside during file downloads");
@@ -758,13 +758,19 @@ namespace DepotDownloader
                             }
 
                             List<ProtoManifest.ChunkData> neededChunks;
+                            #region Checking what already exists of file
                             FileInfo fi = new FileInfo( fileFinalPath );
                             DebugLog.WriteLine(DEBUG_NAME_FILES, "Checking if " + fileFinalPath + " exists");
                             if ( !fi.Exists )
                             {
                                 // create new file. need all chunks
                                 DebugLog.WriteLine(DEBUG_NAME_FILES, fileFinalPath + " does not exist, creating!");
-                                using (FileStream fs = File.Create(fileFinalPath))
+                                //using (FileStream fs = File.Create(fileFinalPath))
+                                //{
+                                //    fs.SetLength((long)file.TotalSize);
+                                //    neededChunks = new List<ProtoManifest.ChunkData>(file.Chunks);
+                                //}
+                                using (FileStream fs = File.Create(fileStagingPath))
                                 {
                                     fs.SetLength((long)file.TotalSize);
                                     neededChunks = new List<ProtoManifest.ChunkData>(file.Chunks);
@@ -802,16 +808,16 @@ namespace DepotDownloader
                                             }
                                         }
 
-                                        DebugLog.WriteLine(DEBUG_NAME_FILES, "Moving file " + fileFinalPath + " to " + fileStagingPath);
-                                        File.Move( fileFinalPath, fileStagingPath );
+                                        //DebugLog.WriteLine(DEBUG_NAME_FILES, "Moving file " + fileFinalPath + " to " + fileStagingPath);
+                                        //File.Move( fileFinalPath, fileStagingPath );
 
-                                        DebugLog.WriteLine(DEBUG_NAME_FILES, "Creating file " + fileFinalPath);
-                                        using (FileStream fs = File.Open(fileFinalPath, FileMode.Create))
+                                        DebugLog.WriteLine(DEBUG_NAME_FILES, "Creating file " + fileStagingPath);
+                                        using (FileStream fs = File.Open(fileStagingPath, FileMode.Create))
                                         {
                                             fs.SetLength((long)file.TotalSize);
 
-                                            DebugLog.WriteLine(DEBUG_NAME_FILES, "Opening file " + fileStagingPath);
-                                            using (var fsOld = File.Open(fileStagingPath, FileMode.Open))
+                                            DebugLog.WriteLine(DEBUG_NAME_FILES, "Opening file " + fileFinalPath);
+                                            using (var fsOld = File.Open(fileFinalPath, FileMode.Open))
                                             {
                                                 foreach (var match in matchingChunks)
                                                 {
@@ -833,8 +839,8 @@ namespace DepotDownloader
                                                 }
                                             }
                                         }
-                                        DebugLog.WriteLine(DEBUG_NAME_FILES, "Deleting file " + fileStagingPath);
-                                        File.Delete( fileStagingPath );
+                                        //DebugLog.WriteLine(DEBUG_NAME_FILES, "Deleting file " + fileStagingPath);
+                                        //File.Delete( fileStagingPath );
                                     }
                                 }
                                 else
@@ -856,6 +862,8 @@ namespace DepotDownloader
                                 if (neededChunks.Count() == 0)
                                 {
                                     size_downloaded += file.TotalSize;
+                                    DebugLog.WriteLine(DEBUG_NAME_FILES, "Deleting file " + fileStagingPath);
+                                    File.Delete( fileStagingPath );
                                     DebugLog.WriteLine("ContentDownloader", DownloadPercent * 100.0f + "% " + fileFinalPath);
                                     return;
                                 }
@@ -864,9 +872,10 @@ namespace DepotDownloader
                                     size_downloaded += ( file.TotalSize - ( ulong )neededChunks.Select( x => ( long )x.UncompressedLength ).Sum() );
                                 }
                             }
+                            #endregion
 
-                            DebugLog.WriteLine(DEBUG_NAME_FILES, "Opening file " + fileFinalPath);
-                            using (FileStream fs = File.Open(fileFinalPath, FileMode.Open))
+                            DebugLog.WriteLine(DEBUG_NAME_FILES, "Opening file " + fileStagingPath);
+                            using (FileStream fs = File.Open(fileStagingPath, FileMode.OpenOrCreate))
                             {
                                 foreach (var chunk in neededChunks)
                                 {
@@ -949,7 +958,7 @@ namespace DepotDownloader
                                     {
 
                                         fs.Seek((long)chunk.Offset, SeekOrigin.Begin);
-                                        await chunkData.DataStream.CopyToAsync(fs, 81920, outsideCancelSource.Token);
+                                        await chunkData.DataStream.CopyToAsync(fs, 81920, outsideCancelToken);
                                         //chunkData.DataStream.CopyTo(fs);
                                         //fs.Write(chunkData.Data, 0, chunkData.Data.Length);
                                     }
@@ -957,6 +966,15 @@ namespace DepotDownloader
                                     size_downloaded += chunk.UncompressedLength;
                                 }
                             }
+
+                            if (File.Exists(fileFinalPath))
+                            {
+                                DebugLog.WriteLine(DEBUG_NAME_FILES, fileFinalPath + " exists, deleting!");
+                                File.Delete(fileFinalPath);
+                            }
+                            DebugLog.WriteLine(DEBUG_NAME_FILES, "Moving " + fileStagingPath + " to " + fileFinalPath);
+                            File.Move(fileStagingPath, fileFinalPath);
+
                             DebugLog.WriteLine("ContentDownloader", DownloadPercent * 100.0f + "% " + fileFinalPath );
                         }
                         finally
@@ -968,7 +986,14 @@ namespace DepotDownloader
                     tasks[ i ] = task;
                 }
 
-                Task.WaitAll(tasks);
+                try
+                {
+                    Task.WaitAll(tasks);
+                }
+                catch(Exception e)
+                {
+                    DebugLog.WriteLine("ContentDownloader", "Exception was thrown while downloading: " + e.ToString());
+                }
 
                 ConfigStore.TheConfig.LastManifests[ depot.id ] = depot.manifestId;
                 ConfigStore.Save();

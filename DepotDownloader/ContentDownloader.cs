@@ -17,7 +17,7 @@ namespace DepotDownloader
         public const uint INVALID_DEPOT_ID = uint.MaxValue;
         public const ulong INVALID_MANIFEST_ID = ulong.MaxValue;
         public const string DEFAULT_BRANCH = "Public";
-        private const string DEBUG_NAME_FILES = "ContentDownloaderFiles";
+        //private const string DEBUG_NAME_FILES = "ContentDownloaderFiles";
 
         public static DownloadConfig Config = new DownloadConfig();
 
@@ -596,10 +596,10 @@ namespace DepotDownloader
                 if ( lastManifestId != INVALID_MANIFEST_ID )
                 {
                     var oldManifestFileName = Path.Combine( configDir, string.Format( "{0}.bin", lastManifestId ) );
-                    DebugLog.WriteLine(DEBUG_NAME_FILES, "Checking if " + oldManifestFileName + " exists");
+                    //DebugLog.WriteLine(DEBUG_NAME_FILES, "Checking if " + oldManifestFileName + " exists");
                     if (File.Exists(oldManifestFileName))
                     {
-                        DebugLog.WriteLine(DEBUG_NAME_FILES, oldManifestFileName + " exists, reading!");
+                        //DebugLog.WriteLine(DEBUG_NAME_FILES, oldManifestFileName + " exists, reading!");
                         oldProtoManifest = ProtoManifest.LoadFromFile(oldManifestFileName);
                     }
                 }
@@ -750,21 +750,21 @@ namespace DepotDownloader
                             string fileStagingPath = Path.Combine( stagingDir, file.FileName );
 
                             // This may still exist if the previous run exited before cleanup
-                            DebugLog.WriteLine(DEBUG_NAME_FILES, "Checking if " + fileStagingPath + " exists");
+                            //DebugLog.WriteLine(DEBUG_NAME_FILES, "Checking if " + fileStagingPath + " exists");
                             if ( File.Exists( fileStagingPath ) )
                             {
-                                DebugLog.WriteLine(DEBUG_NAME_FILES, fileStagingPath + " exists, deleting!");
+                                //DebugLog.WriteLine(DEBUG_NAME_FILES, fileStagingPath + " exists, deleting!");
                                 File.Delete( fileStagingPath );
                             }
 
                             List<ProtoManifest.ChunkData> neededChunks;
                             #region Checking what already exists of file
                             FileInfo fi = new FileInfo( fileFinalPath );
-                            DebugLog.WriteLine(DEBUG_NAME_FILES, "Checking if " + fileFinalPath + " exists");
+                            //DebugLog.WriteLine(DEBUG_NAME_FILES, "Checking if " + fileFinalPath + " exists");
                             if ( !fi.Exists )
                             {
                                 // create new file. need all chunks
-                                DebugLog.WriteLine(DEBUG_NAME_FILES, fileFinalPath + " does not exist, creating!");
+                                //DebugLog.WriteLine(DEBUG_NAME_FILES, fileFinalPath + " does not exist, creating!");
                                 //using (FileStream fs = File.Create(fileFinalPath))
                                 //{
                                 //    fs.SetLength((long)file.TotalSize);
@@ -811,12 +811,12 @@ namespace DepotDownloader
                                         //DebugLog.WriteLine(DEBUG_NAME_FILES, "Moving file " + fileFinalPath + " to " + fileStagingPath);
                                         //File.Move( fileFinalPath, fileStagingPath );
 
-                                        DebugLog.WriteLine(DEBUG_NAME_FILES, "Creating file " + fileStagingPath);
+                                        //DebugLog.WriteLine(DEBUG_NAME_FILES, "Creating file " + fileStagingPath);
                                         using (FileStream fs = File.Open(fileStagingPath, FileMode.Create))
                                         {
                                             fs.SetLength((long)file.TotalSize);
 
-                                            DebugLog.WriteLine(DEBUG_NAME_FILES, "Opening file " + fileFinalPath);
+                                            //DebugLog.WriteLine(DEBUG_NAME_FILES, "Opening file " + fileFinalPath);
                                             using (var fsOld = File.Open(fileFinalPath, FileMode.Open))
                                             {
                                                 foreach (var match in matchingChunks)
@@ -847,7 +847,7 @@ namespace DepotDownloader
                                 {
                                     // No old manifest or file not in old manifest. We must validate.
 
-                                    DebugLog.WriteLine(DEBUG_NAME_FILES, "Opening file " + fileFinalPath);
+                                    //DebugLog.WriteLine(DEBUG_NAME_FILES, "Opening file " + fileFinalPath);
                                     using (FileStream fs = File.Open(fileFinalPath, FileMode.Open))
                                     {
                                         if ((ulong)fi.Length != file.TotalSize)
@@ -862,7 +862,7 @@ namespace DepotDownloader
                                 if (neededChunks.Count() == 0)
                                 {
                                     size_downloaded += file.TotalSize;
-                                    DebugLog.WriteLine(DEBUG_NAME_FILES, "Deleting file " + fileStagingPath);
+                                    //DebugLog.WriteLine(DEBUG_NAME_FILES, "Deleting file " + fileStagingPath);
                                     File.Delete( fileStagingPath );
                                     DebugLog.WriteLine("ContentDownloader", DownloadPercent * 100.0f + "% " + fileFinalPath);
                                     return;
@@ -874,7 +874,7 @@ namespace DepotDownloader
                             }
                             #endregion
 
-                            DebugLog.WriteLine(DEBUG_NAME_FILES, "Opening file " + fileStagingPath);
+                            //DebugLog.WriteLine(DEBUG_NAME_FILES, "Opening file " + fileStagingPath);
                             using (FileStream fs = File.Open(fileStagingPath, FileMode.OpenOrCreate))
                             {
                                 foreach (var chunk in neededChunks)
@@ -969,10 +969,10 @@ namespace DepotDownloader
 
                             if (File.Exists(fileFinalPath))
                             {
-                                DebugLog.WriteLine(DEBUG_NAME_FILES, fileFinalPath + " exists, deleting!");
+                                //DebugLog.WriteLine(DEBUG_NAME_FILES, fileFinalPath + " exists, deleting!");
                                 File.Delete(fileFinalPath);
                             }
-                            DebugLog.WriteLine(DEBUG_NAME_FILES, "Moving " + fileStagingPath + " to " + fileFinalPath);
+                            //DebugLog.WriteLine(DEBUG_NAME_FILES, "Moving " + fileStagingPath + " to " + fileFinalPath);
                             File.Move(fileStagingPath, fileFinalPath);
 
                             DebugLog.WriteLine("ContentDownloader", DownloadPercent * 100.0f + "% " + fileFinalPath );

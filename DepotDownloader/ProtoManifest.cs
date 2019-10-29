@@ -24,7 +24,7 @@ namespace DepotDownloader
         }
 
         [ProtoContract()]
-        public class FileData
+        public class FileData : IEquatable<FileData>
         {
             // Proto ctor
             public FileData()
@@ -67,6 +67,26 @@ namespace DepotDownloader
             /// </summary>
             [ProtoMember(5)]
             public byte[] FileHash { get; set; }
+
+            public override bool Equals(object obj)
+            {
+                bool equal = true;
+                if (obj is FileData)
+                    equal = Equals((FileData)obj);
+                else
+                    equal = false;
+
+                return equal;
+            }
+            public override int GetHashCode()
+            {
+                return FileName.GetHashCode();
+            }
+
+            public bool Equals(FileData other)
+            {
+                return Util.UriEquals(FileName, other.FileName);
+            }
         }
 
         [ProtoContract(SkipConstructor = true)]

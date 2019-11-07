@@ -155,7 +155,7 @@ namespace DepotDownloader
                     logonDetails.SentryFileHash = Util.SHAHash(ConfigStore.TheConfig.SentryData[logonDetails.Username]);
                 }
 
-                isLoggingIn = true;
+                //isLoggingIn = true;
             }
         }
         public async Task LoginAsAnon()
@@ -180,6 +180,7 @@ namespace DepotDownloader
             onDisconnected += disconnectedCallback;
 
             DebugLog.WriteLine("Steam3Session", "Logging anonymously into Steam3...");
+            isLoggingIn = true;
             steamUser.LogOnAnonymous();
             return tcs.Task;
         }
@@ -500,6 +501,7 @@ namespace DepotDownloader
             bAborted = false;
             bConnected = false;
             bConnecting = true;
+            //isLoggingIn = true;
             connectionBackoff = 0;
             bExpectingDisconnectRemote = false;
             bDidDisconnect = false;
@@ -517,6 +519,9 @@ namespace DepotDownloader
         {
             if ( sendLogOff )
             {
+                isAnon = false;
+                authenticatedUser = false;
+                logonDetails = null;
                 steamUser.LogOff();
             }
 
@@ -553,6 +558,7 @@ namespace DepotDownloader
             if (authenticatedUser)
             {
                 DebugLog.WriteLine("Steam3Session",  "Logging '" + logonDetails.Username + "' into Steam3...");
+                isLoggingIn = true;
                 steamUser.LogOn(logonDetails);
             }
 

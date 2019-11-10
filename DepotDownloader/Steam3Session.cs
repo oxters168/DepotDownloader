@@ -43,6 +43,7 @@ namespace DepotDownloader
         public bool bConnected { get; private set; }
         public bool bConnecting { get; private set; }
         public bool isLoggingIn { get; private set; }
+        public bool isLoggingInAnon { get; private set; }
         public bool isAnon { get; private set; }
         bool bAborted;
         bool bExpectingDisconnectRemote;
@@ -167,7 +168,7 @@ namespace DepotDownloader
         {
             var tcs = new TaskCompletionSource<bool>();
 
-            isAnon = true;
+            //isAnon = true;
 
             LoggedOnHandler loggedOnCallback = null;
             LogonFailedHandler logonFailedCallback = null;
@@ -181,6 +182,7 @@ namespace DepotDownloader
 
             DebugLog.WriteLine("Steam3Session", "Logging anonymously into Steam3...");
             isLoggingIn = true;
+            isLoggingInAnon = true;
             steamUser.LogOnAnonymous();
             return tcs.Task;
         }
@@ -572,12 +574,14 @@ namespace DepotDownloader
             if ( disconnected.UserInitiated || bExpectingDisconnectRemote )
             {
                 isLoggingIn = false;
+                isLoggingInAnon = false;
                 DebugLog.WriteLine("Steam3Session",  "Disconnected from Steam" );
                 onDisconnected?.Invoke();
             }
             else if ( connectionBackoff >= reconnectAttempts )
             {
                 isLoggingIn = false;
+                isLoggingInAnon = false;
                 DebugLog.WriteLine("Steam3Session",  "Could not connect to Steam after 3 tries" );
                 Abort( false );
                 onDisconnected?.Invoke();
@@ -601,6 +605,8 @@ namespace DepotDownloader
         private void LogOnCallback( SteamUser.LoggedOnCallback callback )
         {
             isLoggingIn = false;
+            isAnon = callback.Result == EResult.OK && isLoggingInAnon;
+            isLoggingInAnon = false;
 
             if (logonDetails != null)
             {
